@@ -1053,7 +1053,10 @@ function savePost(){
       sbSavePhoto(postId,i,thumb,full);
     });
   } else if(thumbSrc&&thumbSrc.length>10){
+    // Save base64 immediately so post persists even if tab closes
     sbSavePhoto(postId,0,thumbSrc,fullSrc);
+    // Store postId so Cloudinary handler can upgrade to CDN URL when it finishes
+    window._lastSavedPostId = postId;
   }
   closeModal();autoSave();renderCalendar();renderKanban();buildShootList();
   showToast(editingId?'post updated ✓':'post added ✓');
@@ -1105,19 +1108,21 @@ function handlePhotoUpload(inp){
     currentFullPhoto=thumb; // base64 — persists in Supabase, works offline
     document.getElementById('photoPreview').src=thumb;
     URL.revokeObjectURL(previewUrl);
+    // Capture the post ID at upload time — editingId may be null by the time Cloudinary finishes
+    const uploadTargetId = editingId;
     // Step 2: upload to Cloudinary in background for CDN URL
     uploadToCloudinary(file).then(fullUrl=>{
       currentFullPhoto=fullUrl;
       console.log('Cloudinary upload OK:', fullUrl.substring(0,60));
-      // Update any already-saved post with the Cloudinary URL
-      if(editingId){
-        const p=posts.find(x=>x.id===editingId);
+      // Find the post — works for both new posts (by finding most recent) and edits
+      const targetId = uploadTargetId || window._lastSavedPostId || (posts.length ? posts[posts.length-1].id : null);
+      if(targetId){
+        const p=posts.find(x=>x.id===targetId);
         if(p){
           p.imgSrc=fullUrl;
-          sbSavePhoto(editingId,0,thumb,fullUrl);
+          sbSavePhoto(targetId,0,thumb,fullUrl);
           autoSave();
           renderCalendar();
-          renderLibrary && renderLibrary();
         }
       }
     }).catch(e=>{
