@@ -821,9 +821,19 @@ async function uploadToCloudinary(file){
   const fd = new FormData();
   fd.append('file', file);
   fd.append('upload_preset', CLOUDINARY_PRESET);
+  console.log('Uploading to Cloudinary — cloud:'+CLOUDINARY_CLOUD+' preset:'+CLOUDINARY_PRESET);
   const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:'POST',body:fd});
-  if(!res.ok) throw new Error('Cloudinary upload failed');
+  if(!res.ok){
+    const errText = await res.text().catch(()=>'');
+    console.error('Cloudinary HTTP '+res.status+':', errText.substring(0,200));
+    throw new Error('Cloudinary upload failed: HTTP '+res.status);
+  }
   const data = await res.json();
+  if(!data.secure_url){
+    console.error('Cloudinary no secure_url:', JSON.stringify(data).substring(0,200));
+    throw new Error('Cloudinary: no URL returned');
+  }
+  console.log('Cloudinary success:', data.secure_url.substring(0,80));
   return data.secure_url;
 }
 
@@ -1025,7 +1035,12 @@ function savePost(){
   const isCarousel=typeVal==='post-carousel';
   let thumbSrc='',fullSrc='';
   if(isCarousel){thumbSrc=carouselImages[0]?(typeof carouselImages[0]==='object'?carouselImages[0].thumb:carouselImages[0]):'';fullSrc=carouselImages[0]?(typeof carouselImages[0]==='object'?carouselImages[0].full:carouselImages[0]):'';}
-  else{thumbSrc=currentFullPhoto.length>10?currentFullPhoto:'';fullSrc=thumbSrc;}
+  else{
+    // Never save a blob URL — it dies on reload. Use base64 or Cloudinary URL only.
+    const raw=currentFullPhoto;
+    thumbSrc=(raw&&raw.length>10&&!raw.startsWith('blob:'))?raw:'';
+    fullSrc=thumbSrc;
+  }
   const postId=editingId||uid();
   const postData={id:postId,date:dateVal,type:typeVal,pillar,subject,caption,notes,floorNotes,status,imgSrc:fullSrc||thumbSrc,imgSrcs:isCarousel?carouselImages:[]};
   if(editingId){const idx=posts.findIndex(x=>x.id===editingId);if(idx>-1)posts[idx]=postData;}
@@ -1085,19 +1100,22 @@ function handlePhotoUpload(inp){
   document.getElementById('photoPreview').style.display='block';
   document.getElementById('photoPlaceholder').style.display='none';
   document.getElementById('removePhotoBtn').style.display='inline-flex';
-  currentFullPhoto=previewUrl; // temporary blob for immediate display
-  // Compress to base64 thumb first — this persists even if Cloudinary fails
+  // Step 1: compress to base64 immediately — always safe to save
   compressToThumb(file, thumb=>{
-    currentFullPhoto=thumb; // base64 — safe fallback, always persists
+    currentFullPhoto=thumb; // base64 — persists in Supabase, works offline
     document.getElementById('photoPreview').src=thumb;
     URL.revokeObjectURL(previewUrl);
-    // Then try Cloudinary in background — upgrade to CDN URL if it works
+    // Step 2: upload to Cloudinary in background for CDN URL
     uploadToCloudinary(file).then(fullUrl=>{
-      currentFullPhoto=fullUrl; // upgrade to Cloudinary URL
+      currentFullPhoto=fullUrl;
       console.log('Cloudinary upload OK:', fullUrl.substring(0,60));
+      // If post was already saved, update the photo record in Supabase
+      if(editingId){
+        const p=posts.find(x=>x.id===editingId);
+        if(p){p.imgSrc=fullUrl;sbSavePhoto(editingId,0,thumb,fullUrl);}
+      }
     }).catch(e=>{
-      console.warn('Cloudinary failed, using base64 thumb:', e.message);
-      // currentFullPhoto stays as base64 — will work but won't persist across devices
+      console.warn('Cloudinary failed, using base64:', e.message);
     });
   });
 }
