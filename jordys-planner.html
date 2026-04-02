@@ -1577,262 +1577,289 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
 // ═══════════════════════════════════════
 // ═══ STORY DESIGNER ═══
 // ═══════════════════════════════════════
-const DS={bg:'#0e0d0b',txt:'#f5f0e8',line:'#c2724c',sub:'#d4c9b8',cta:'#c2724c',fontSize:58,subFontSize:32,fontName:'Bebas Neue',align:'left',overlayOpacity:55,photoHeight:55,photoZoom:100};
+let tpl='bold-text';
+const DS={tpl:'bold-text',bg:'#0e0d0b',txt:'#f5f0e8',line:'#c2724c',sub:'#d4c9b8',cta:'#c2724c',fontSize:58,subFontSize:32,fontName:'Bebas Neue',align:'left',overlayOpacity:55,photoHeight:55,photoZoom:100,photoImg:null};
 let tpl='bold-text',photoDataUrl=null;
 
 function selectTpl(el){
-  document.querySelectorAll('.tpl-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');
-  tpl=el.dataset.tpl;
-  // Show/hide fields
-  const fields={tag:['announcement','deal'],'eyebrow':['announcement'],'body':['announcement'],'photo':['photo-bottom','photo-overlay']};
-  Object.entries(fields).forEach(([f,tpls])=>{const row=document.getElementById('dField'+f.charAt(0).toUpperCase()+f.slice(1));if(row)row.style.display=tpls.includes(tpl)?'block':'none';});
-  document.getElementById('dOverlayRow').style.display=tpl==='photo-overlay'?'block':'none';
-  document.getElementById('dPhotoHeightRow').style.display=tpl==='photo-bottom'?'block':'none';
-  document.getElementById('dPhotoZoomRow').style.display=(tpl==='photo-bottom'||tpl==='photo-overlay')?'block':'none';
+  document.querySelectorAll('.tpl-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  tpl = el.dataset.tpl;
+  DS.tpl = tpl;
+  const fields = {
+    'bold-text':    {eyebrow:false,tag:false,body:false,photo:false},
+    'announcement': {eyebrow:true, tag:false,body:true, photo:false},
+    'deal':         {eyebrow:false,tag:true, body:false,photo:false},
+    'cta-only':     {eyebrow:false,tag:false,body:false,photo:false},
+    'photo-bottom': {eyebrow:false,tag:false,body:true, photo:true },
+    'photo-overlay':{eyebrow:true, tag:false,body:false,photo:true },
+  };
+  const f = fields[tpl] || {};
+  document.getElementById('dFieldEyebrow').style.display = f.eyebrow ? 'block' : 'none';
+  document.getElementById('dFieldTag').style.display     = f.tag     ? 'block' : 'none';
+  document.getElementById('dFieldBody').style.display    = f.body    ? 'block' : 'none';
+  document.getElementById('dFieldPhoto').style.display   = f.photo   ? 'block' : 'none';
+  document.getElementById('dOverlayRow').style.display      = (tpl==='photo-overlay') ? 'block' : 'none';
+  document.getElementById('dPhotoHeightRow').style.display  = (tpl==='photo-bottom'||tpl==='photo-overlay') ? 'block' : 'none';
+  document.getElementById('dPhotoZoomRow').style.display    = (tpl==='photo-bottom'||tpl==='photo-overlay') ? 'block' : 'none';
   renderPreview();
 }
 
 function setSw(el){
-  const k=el.dataset.k,v=el.dataset.v;DS[k]=v;
-  document.querySelectorAll(`[data-k="${k}"]`).forEach(s=>s.classList.remove('active'));el.classList.add('active');
+  const k=el.dataset.k, v=el.dataset.v;
+  const mapId={bg:'bgSw',txt:'txtSw',line:'lineSw',cta:'ctaSw',sub:'subSw'};
+  document.querySelectorAll(`#${mapId[k]} .swatch`).forEach(s=>s.classList.remove('active'));
+  el.classList.add('active');
+  DS[k]=v;
   renderPreview();
 }
 
-function setAlign(a,btn){
+function setAlign(a, btn){
   DS.align=a;
-  ['L','C','R'].forEach(x=>document.getElementById('dAl'+x).className='btn btn-ghost btn-sm');
-  btn.className='btn btn-primary btn-sm';renderPreview();
+  ['dAlL','dAlC','dAlR'].forEach(id=>{
+    const b=document.getElementById(id);
+    b.className='btn btn-ghost btn-sm';
+  });
+  btn.className='btn btn-primary btn-sm';
+  renderPreview();
 }
 
 function loadPhoto(inp){
-  const file=inp.files[0];if(!file)return;
-  const reader=new FileReader();reader.onload=e=>{photoDataUrl=e.target.result;document.getElementById('dPhotoName').textContent=file.name;renderPreview();};reader.readAsDataURL(file);
+  const file=inp.files[0]; if(!file) return;
+  document.getElementById('dPhotoName').textContent=file.name;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{ DS.photoImg=img; renderPreview(); };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 function renderPreview(){
   const el=document.getElementById('storyPreview');
-  const W=340,H=604;
-  const hl=document.getElementById('dHeadline')?.value||'';
-  const sub=document.getElementById('dSubtext')?.value||'';
-  const body=document.getElementById('dBody')?.value||'';
-  const cta=document.getElementById('dCta')?.value||'';
-  const tag=document.getElementById('dTag')?.value||'';
-  const eyebrow=document.getElementById('dEyebrow')?.value||'';
-  const align=DS.align;
-  const ta=align==='left'?'left':align==='right'?'right':'center';
-  const pad=36;
+  const hl     = document.getElementById('dHeadline')?.value||'';
+  const ctaTxt = document.getElementById('dCta')?.value||'';
+  const eyebrow= document.getElementById('dEyebrow')?.value||'';
+  const body   = document.getElementById('dBody')?.value||'';
+  const tag    = document.getElementById('dTag')?.value||'';
+  const sub    = document.getElementById('dSubtext')?.value||'';
+  const fs=DS.fontSize, align=DS.align;
+  const aflex=align==='center'?'center':align==='right'?'flex-end':'flex-start';
+  const font=`'${DS.fontName}',${DS.fontName==='Space Mono'?'monospace':'sans-serif'}`;
+  const opac=(DS.overlayOpacity/100).toFixed(2);
+  const isPhoto=DS.tpl==='photo-bottom'||DS.tpl==='photo-overlay';
+  const hasPhoto=DS.photoImg&&isPhoto;
+  const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 
-  let html='';
+  const divider=`<div style="height:2px;background:${DS.line};margin:12px 0 10px;opacity:.85;"></div>`;
+  const ctaBlock=ctaTxt?`<div style="display:flex;align-items:center;gap:7px;justify-content:${aflex};font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:${DS.cta};">→ <span>${esc(ctaTxt)}</span></div>`:'';
+  const subBlock=sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${DS.subFontSize}px;line-height:1.5;color:${DS.sub};margin-top:8px;text-align:${align};">${esc(sub)}</div>`:'';
+  const hlBlock=`<div style="font-family:${font};font-size:${fs}px;letter-spacing:2px;line-height:1.05;color:${DS.txt};">${esc(hl)}</div>`;
 
-  if(tpl==='bold-text'){
-    html=`<div style="width:100%;height:100%;background:${DS.bg};display:flex;flex-direction:column;justify-content:flex-end;padding:${pad}px;"><div style="height:3px;background:${DS.line};width:${align==='center'?'60%':'40%'};${align==='right'?'margin-left:auto;':align==='center'?'margin:0 auto;':''}margin-bottom:24px;"></div><div style="font-family:'Bebas Neue',sans-serif;font-size:${DS.fontSize*0.55}px;color:${DS.txt};letter-spacing:2px;line-height:1.05;text-align:${ta};white-space:pre-line;">${escHtml(hl)||'YOUR HEADLINE'}</div>${sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${DS.subFontSize*0.55}px;color:${DS.sub};margin-top:16px;text-align:${ta};line-height:1.4;white-space:pre-line;">${escHtml(sub)}</div>`:''}<div style="height:1px;background:${DS.line};opacity:.4;margin:20px 0;"></div>${cta?`<div style="font-family:'Space Mono',monospace;font-size:${10}px;color:${DS.cta};letter-spacing:3px;text-transform:uppercase;text-align:${ta};">${escHtml(cta)}</div>`:''}<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:${DS.line};letter-spacing:3px;text-transform:uppercase;text-align:${ta};margin-top:18px;opacity:.8;">JORDY'S CASUARINA</div></div>`;
-  } else if(tpl==='announcement'){
-    html=`<div style="width:100%;height:100%;background:${DS.bg};display:flex;flex-direction:column;justify-content:center;padding:${pad}px;">${tag?`<div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:${DS.line};margin-bottom:16px;text-align:${ta};">${escHtml(tag)}</div>`:''}${eyebrow?`<div style="font-family:'Space Mono',monospace;font-size:10px;color:${DS.sub};letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;text-align:${ta};">${escHtml(eyebrow)}</div>`:''}<div style="font-family:'Bebas Neue',sans-serif;font-size:${DS.fontSize*0.52}px;color:${DS.txt};letter-spacing:2px;line-height:1.05;text-align:${ta};white-space:pre-line;">${escHtml(hl)||'ANNOUNCEMENT'}</div><div style="height:2px;background:${DS.line};width:${align==='center'?'50%':'35%'};${align==='right'?'margin-left:auto;':align==='center'?'margin:0 auto;':''}margin:20px 0;"></div>${body?`<div style="font-family:'DM Sans',sans-serif;font-size:${DS.subFontSize*0.48}px;color:${DS.sub};text-align:${ta};line-height:1.5;white-space:pre-line;">${escHtml(body)}</div>`:''}<div style="margin-top:24px;">${cta?`<div style="font-family:'Space Mono',monospace;font-size:9px;color:${DS.cta};letter-spacing:3px;text-transform:uppercase;text-align:${ta};">${escHtml(cta)}</div>`:''}</div></div>`;
-  } else if(tpl==='deal'){
-    html=`<div style="width:100%;height:100%;background:${DS.bg};display:flex;flex-direction:column;justify-content:center;padding:${pad}px;"><div style="background:${DS.line};padding:6px 14px;display:inline-block;${align==='right'?'margin-left:auto;':align==='center'?'margin:0 auto;':''}margin-bottom:20px;"><div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:3px;color:${DS.bg};text-transform:uppercase;">${escHtml(tag)||'WED & THU ONLY'}</div></div><div style="font-family:'Bebas Neue',sans-serif;font-size:${DS.fontSize*0.6}px;color:${DS.txt};letter-spacing:2px;line-height:1.05;text-align:${ta};white-space:pre-line;">${escHtml(hl)||'$10 DRINKS'}</div>${sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${DS.subFontSize*0.5}px;color:${DS.sub};margin-top:16px;text-align:${ta};line-height:1.4;">${escHtml(sub)}</div>`:''}<div style="height:2px;background:${DS.line};margin:24px 0;"></div><div style="font-family:'Space Mono',monospace;font-size:9px;color:${DS.cta};letter-spacing:3px;text-transform:uppercase;text-align:${ta};">${escHtml(cta)||'OPEN FROM 5 · WALK IN OR BOOK'}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:${DS.line};letter-spacing:3px;text-transform:uppercase;text-align:${ta};margin-top:16px;opacity:.8;">JORDY'S CASUARINA</div></div>`;
-  } else if(tpl==='cta-only'){
-    html=`<div style="width:100%;height:100%;background:${DS.bg};display:flex;flex-direction:column;justify-content:center;align-items:${align==='center'?'center':align==='right'?'flex-end':'flex-start'};padding:${pad}px;"><div style="height:2px;background:${DS.line};width:40%;margin-bottom:30px;"></div><div style="font-family:'Bebas Neue',sans-serif;font-size:${DS.fontSize*0.62}px;color:${DS.txt};letter-spacing:2px;line-height:1.05;text-align:${ta};white-space:pre-line;">${escHtml(hl)||'BOOK A TABLE'}</div>${sub?`<div style="font-family:'Space Mono',monospace;font-size:${DS.subFontSize*0.4}px;color:${DS.sub};margin-top:18px;text-align:${ta};letter-spacing:1px;line-height:1.6;">${escHtml(sub)}</div>`:''}<div style="height:2px;background:${DS.line};opacity:.4;width:40%;margin-top:28px;"></div></div>`;
-  } else if(tpl==='photo-bottom'){
+  let inner='';
+
+  if(DS.tpl==='bold-text'||DS.tpl==='announcement'||DS.tpl==='deal'){
+    const topContent=`
+      ${DS.tpl==='deal'&&tag?`<div style="display:inline-block;background:${DS.cta};color:${DS.bg};font-family:'Space Mono',monospace;font-size:7px;letter-spacing:2px;text-transform:uppercase;padding:3px 8px;border-radius:2px;margin-bottom:10px;">${esc(tag)}</div>`:''}
+      ${DS.tpl==='announcement'&&eyebrow?`<div style="font-family:'Space Mono',monospace;font-size:7px;letter-spacing:3px;text-transform:uppercase;color:${DS.cta};margin-bottom:10px;opacity:.8;">${esc(eyebrow)}</div>`:''}
+      ${hlBlock}${subBlock}
+      ${body?`<div style="font-family:'DM Sans',sans-serif;font-size:10px;line-height:1.6;color:${DS.sub};margin-top:10px;">${esc(body)}</div>`:''}`;
+    inner=`
+      <div style="position:absolute;inset:0;background:${DS.bg};"></div>
+      <div style="position:relative;z-index:2;width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between;padding:28px 22px 22px;box-sizing:border-box;">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;text-align:${align};overflow:hidden;min-height:0;">${topContent}</div>
+        <div style="flex-shrink:0;text-align:${align};">${divider}${ctaBlock}</div>
+      </div>`;
+
+  } else if(DS.tpl==='cta-only'){
+    inner=`
+      <div style="position:absolute;inset:0;background:${DS.bg};"></div>
+      <div style="position:relative;z-index:2;width:100%;height:100%;display:flex;flex-direction:column;align-items:${aflex};justify-content:center;padding:28px 22px;box-sizing:border-box;text-align:${align};">
+        ${hlBlock}${subBlock}
+        <div style="position:absolute;bottom:22px;left:22px;right:22px;text-align:${align};">${divider}${ctaBlock}</div>
+      </div>`;
+
+  } else if(DS.tpl==='photo-bottom'){
     const ph=DS.photoHeight;
-    const photoHtml=photoDataUrl?`<img src="${photoDataUrl}" style="width:100%;height:100%;object-fit:cover;transform:scale(${DS.photoZoom/100});transform-origin:center;">`:('<div style="width:100%;height:100%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">upload photo</div>');
-    html=`<div style="width:100%;height:100%;background:${DS.bg};display:flex;flex-direction:column;"><div style="height:${ph}%;overflow:hidden;">${photoHtml}</div><div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:${pad*0.7}px ${pad}px;"><div style="height:2px;background:${DS.line};width:35%;${align==='right'?'margin-left:auto;':align==='center'?'margin:0 auto;':''}margin-bottom:14px;"></div><div style="font-family:'Bebas Neue',sans-serif;font-size:${DS.fontSize*0.5}px;color:${DS.txt};letter-spacing:2px;line-height:1.05;text-align:${ta};white-space:pre-line;">${escHtml(hl)||'HEADLINE'}</div>${sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${DS.subFontSize*0.45}px;color:${DS.sub};margin-top:10px;text-align:${ta};line-height:1.4;">${escHtml(sub)}</div>`:''}<div style="margin-top:14px;font-family:'Space Mono',monospace;font-size:8px;color:${DS.cta};letter-spacing:2px;text-transform:uppercase;text-align:${ta};">${escHtml(cta)}</div></div></div>`;
-  } else if(tpl==='photo-overlay'){
-    const photoHtml=photoDataUrl?`<img src="${photoDataUrl}" style="width:100%;height:100%;object-fit:cover;transform:scale(${DS.photoZoom/100});transform-origin:center;">`:('<div style="width:100%;height:100%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">upload photo</div>');
-    html=`<div style="width:100%;height:100%;position:relative;overflow:hidden;">${photoHtml}<div style="position:absolute;inset:0;background:rgba(0,0,0,${DS.overlayOpacity/100});"></div><div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:${pad}px;"><div style="height:2px;background:${DS.line};width:35%;${align==='right'?'margin-left:auto;':align==='center'?'margin:0 auto;':''}margin-bottom:16px;"></div><div style="font-family:'Bebas Neue',sans-serif;font-size:${DS.fontSize*0.52}px;color:${DS.txt};letter-spacing:2px;line-height:1.05;text-align:${ta};white-space:pre-line;">${escHtml(hl)||'HEADLINE'}</div>${sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${DS.subFontSize*0.47}px;color:${DS.sub};margin-top:12px;text-align:${ta};line-height:1.4;">${escHtml(sub)}</div>`:''}<div style="height:1px;background:${DS.line};opacity:.4;margin:16px 0;"></div><div style="font-family:'Space Mono',monospace;font-size:9px;color:${DS.cta};letter-spacing:3px;text-transform:uppercase;text-align:${ta};">${escHtml(cta)}</div></div></div>`;
+    const zoom=DS.photoZoom/100;
+    const photoCss=hasPhoto
+      ? `background:url('${DS.photoImg.src}') center/cover no-repeat;background-size:${zoom>=1?zoom*100+'%':'cover'};`
+      : 'background:#e8e2da;';
+    inner=`
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;">
+        <div style="height:${ph}%;overflow:hidden;${photoCss}${!hasPhoto?'display:flex;align-items:center;justify-content:center;':''}">
+          ${!hasPhoto?`<span style="font-family:'Space Mono',monospace;font-size:8px;color:#9a8a7a;letter-spacing:1px;text-transform:uppercase;">upload a photo</span>`:''}
+        </div>
+        <div style="flex:1;background:${DS.bg};"></div>
+      </div>
+      <div style="position:relative;z-index:2;width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding:22px;box-sizing:border-box;text-align:${align};">
+        ${body?`<div style="font-family:'DM Sans',sans-serif;font-size:9px;line-height:1.6;color:${DS.sub};margin-bottom:7px;">${esc(body)}</div>`:''}
+        ${hlBlock}${subBlock}${divider}${ctaBlock}
+      </div>`;
+
+  } else if(DS.tpl==='photo-overlay'){
+    const zoom=DS.photoZoom/100;
+    const photoBg=hasPhoto?`url('${DS.photoImg.src}') center/cover no-repeat`:'#e8e2da';
+    inner=`
+      <div style="position:absolute;inset:0;background:${photoBg};">
+        ${!hasPhoto?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Space Mono',monospace;font-size:8px;color:#9a8a7a;letter-spacing:1px;text-transform:uppercase;">upload a photo</span></div>`:''}
+      </div>
+      <div style="position:absolute;inset:0;background:linear-gradient(to top,${DS.bg} 48%,rgba(0,0,0,${opac}) 100%);"></div>
+      <div style="position:relative;z-index:2;width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between;padding:28px 22px 22px;box-sizing:border-box;">
+        ${eyebrow?`<div style="font-family:'Space Mono',monospace;font-size:7px;letter-spacing:3px;text-transform:uppercase;color:${DS.cta};text-align:${align};">${esc(eyebrow)}</div>`:'<div></div>'}
+        <div style="text-align:${align};">${hlBlock}${subBlock}${divider}${ctaBlock}</div>
+      </div>`;
   }
 
-  el.innerHTML=html;
-} // end _UNUSED
+  el.innerHTML=inner;
+}
+
+async function downloadPNG(){
+  const statusEl=document.getElementById('dlStatus');
+  statusEl.textContent='rendering...';
+  await document.fonts.ready;
+  await new Promise(r=>setTimeout(r,300));
+
+  const SCALE=3;
+  const PW=340, PH=604;
+  const W=PW*SCALE, H=PH*SCALE;
+  const isPhoto=DS.tpl==='photo-bottom'||DS.tpl==='photo-overlay';
+
+  try{
+    // Step 1: draw photo directly to canvas at full res
+    const canvas=document.createElement('canvas');
+    canvas.width=W; canvas.height=H;
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle=DS.bg;
+    ctx.fillRect(0,0,W,H);
+
+    if(isPhoto && DS.photoImg){
+      const img=DS.photoImg;
+      const zoom=DS.photoZoom/100;
+      if(DS.tpl==='photo-bottom'){
+        const photoH=Math.round(H*(DS.photoHeight/100));
+        ctx.save();
+        ctx.beginPath(); ctx.rect(0,0,W,photoH); ctx.clip();
+        const r=Math.max(W/img.width, photoH/img.height)*zoom;
+        const dw=img.width*r, dh=img.height*r;
+        ctx.drawImage(img,(W-dw)/2,(photoH-dh)/2,dw,dh);
+        ctx.restore();
+        ctx.fillStyle=DS.bg;
+        ctx.fillRect(0,photoH,W,H-photoH);
+      } else {
+        // photo-overlay: full bleed + gradient
+        const r=Math.max(W/img.width, H/img.height)*zoom;
+        const dw=img.width*r, dh=img.height*r;
+        ctx.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh);
+        const grad=ctx.createLinearGradient(0,H,0,0);
+        grad.addColorStop(0,DS.bg);
+        grad.addColorStop(0.48,DS.bg);
+        grad.addColorStop(1,`rgba(0,0,0,${(DS.overlayOpacity/100).toFixed(2)})`);
+        ctx.fillStyle=grad;
+        ctx.fillRect(0,0,W,H);
+      }
+    }
+
+    // Step 2: build text-only offscreen div (transparent bg)
+    const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    const hl     = document.getElementById('dHeadline')?.value||'';
+    const ctaTxt = document.getElementById('dCta')?.value||'';
+    const eyebrow= document.getElementById('dEyebrow')?.value||'';
+    const body   = document.getElementById('dBody')?.value||'';
+    const tag    = document.getElementById('dTag')?.value||'';
+    const sub    = document.getElementById('dSubtext')?.value||'';
+    const align  = DS.align;
+    const aflex  = align==='center'?'center':align==='right'?'flex-end':'flex-start';
+    const font   = `'${DS.fontName}',${DS.fontName==='Space Mono'?'monospace':'sans-serif'}`;
+    const fs     = DS.fontSize;
+    const subPx  = DS.subFontSize;
+    const pad    = 22;
+
+    const divHtml = `<div style="height:2px;background:${DS.line};margin:14px 0 10px;opacity:.85;flex-shrink:0;"></div>`;
+    const ctaHtml = ctaTxt?`<div style="display:flex;align-items:center;gap:7px;justify-content:${aflex};font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:${DS.cta};flex-shrink:0;">&#8594; <span>${esc(ctaTxt)}</span></div>`:'';
+    const subHtml = sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${subPx}px;line-height:1.5;color:${DS.sub};margin-top:8px;text-align:${align};">${esc(sub)}</div>`:'';
+    const hlHtml  = `<div style="font-family:${font};font-size:${fs}px;letter-spacing:2px;line-height:1.05;color:${DS.txt};">${esc(hl)}</div>`;
+    const bodyHtml= body?`<div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(fs*0.45)}px;line-height:1.6;color:${DS.sub};margin-top:10px;">${esc(body)}</div>`:'';
+
+    let textInner='';
+    if(DS.tpl==='bold-text'||DS.tpl==='announcement'||DS.tpl==='deal'){
+      const topContent=`
+        ${DS.tpl==='deal'&&tag?`<div style="display:inline-block;background:${DS.cta};color:${DS.bg};font-family:'Space Mono',monospace;font-size:7px;letter-spacing:2px;text-transform:uppercase;padding:3px 8px;border-radius:2px;margin-bottom:12px;">${esc(tag)}</div>`:''}
+        ${DS.tpl==='announcement'&&eyebrow?`<div style="font-family:'Space Mono',monospace;font-size:7px;letter-spacing:3px;text-transform:uppercase;color:${DS.cta};margin-bottom:12px;opacity:.8;">${esc(eyebrow)}</div>`:''}
+        ${hlHtml}${subHtml}${bodyHtml}`;
+      textInner=`
+        <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between;padding:${pad}px;box-sizing:border-box;">
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;text-align:${align};overflow:hidden;min-height:0;">${topContent}</div>
+          <div style="flex-shrink:0;text-align:${align};">${divHtml}${ctaHtml}</div>
+        </div>`;
+    } else if(DS.tpl==='cta-only'){
+      textInner=`
+        <div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:${aflex};justify-content:center;padding:${pad}px;box-sizing:border-box;text-align:${align};position:relative;">
+          ${hlHtml}${subHtml}
+          <div style="position:absolute;bottom:${pad}px;left:${pad}px;right:${pad}px;text-align:${align};">${divHtml}${ctaHtml}</div>
+        </div>`;
+    } else if(DS.tpl==='photo-bottom'){
+      textInner=`
+        <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding:${pad}px;box-sizing:border-box;text-align:${align};">
+          ${body?`<div style="margin-bottom:8px;">${bodyHtml}</div>`:''}
+          ${hlHtml}${subHtml}${divHtml}${ctaHtml}
+        </div>`;
+    } else if(DS.tpl==='photo-overlay'){
+      textInner=`
+        <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between;padding:${pad}px;box-sizing:border-box;">
+          ${eyebrow?`<div style="font-family:'Space Mono',monospace;font-size:7px;letter-spacing:3px;text-transform:uppercase;color:${DS.cta};text-align:${align};">${esc(eyebrow)}</div>`:'<div></div>'}
+          <div style="text-align:${align};">${hlHtml}${subHtml}${divHtml}${ctaHtml}</div>
+        </div>`;
+    }
+
+    // Create offscreen div at preview size (html2canvas scales it up)
+    const offscreen=document.createElement('div');
+    offscreen.style.cssText=`position:fixed;left:-9999px;top:0;width:${PW}px;height:${PH}px;overflow:hidden;background:transparent;font-family:'DM Sans',sans-serif;`;
+    offscreen.innerHTML=textInner;
+    document.body.appendChild(offscreen);
+    await new Promise(r=>setTimeout(r,200));
+
+    // Step 3: capture text layer at scale (transparent bg)
+    const textCanvas=await html2canvas(offscreen,{
+      scale:SCALE,
+      useCORS:true,
+      allowTaint:true,
+      backgroundColor:null,
+      logging:false,
+      width:PW,
+      height:PH,
+    });
+    document.body.removeChild(offscreen);
+
+    // Step 4: composite text onto photo canvas
+    ctx.drawImage(textCanvas,0,0,W,H);
+
+    // Download
+    const a=document.createElement('a');
+    a.download=`jordys-story-${Date.now()}.png`;
+    a.href=canvas.toDataURL('image/png');
+    a.click();
+    statusEl.textContent='downloaded \u2713  1080\u00d71920';
+    showToast('story downloaded \u2713');
+
+  }catch(e){
+    statusEl.textContent='error: '+e.message;
+    showToast('export failed');
+    console.error(e);
+  }
+}
 
 function resetDesigner(){
-  document.getElementById('dHeadline').value='';
-  document.getElementById('dSubtext').value='';
-  document.getElementById('dBody').value='';
-  document.getElementById('dCta').value='';
-  document.getElementById('dTag').value='';
-  document.getElementById('dEyebrow').value='';
-  document.getElementById('dPhoto').value='';
+  ['dHeadline','dSubtext','dCta','dEyebrow','dTag','dBody'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  DS.photoImg=null; DS.photoHeight=55; DS.photoZoom=100; DS.subFontSize=32;
+  const phH=document.getElementById('dPhHSlider'); if(phH){phH.value=55;document.getElementById('dPhHLabel').textContent='55%';}
+  const phZ=document.getElementById('dPhZSlider'); if(phZ){phZ.value=100;document.getElementById('dPhZLabel').textContent='100%';}
+  const subFs=document.getElementById('dSubFsSlider'); if(subFs){subFs.value=32;document.getElementById('dSubFsLabel').textContent='32px';}
   document.getElementById('dPhotoName').textContent='';
   photoDataUrl=null;
   renderPreview();
-  showToast('reset ✓');
-}
-
-function downloadPNG(){
-  const status = document.getElementById('dlStatus');
-  status.textContent = 'rendering...';
-
-  const EXPORT_W = 1080, EXPORT_H = 1920;
-  const PREV_W   = 340,  PREV_H   = 604;
-  const S = EXPORT_W / PREV_W; // ~3.176
-
-  // 1. Build offscreen container at full export size
-  const offscreen = document.createElement('div');
-  offscreen.style.cssText = [
-    'position:fixed',
-    'left:-9999px',
-    'top:0',
-    `width:${EXPORT_W}px`,
-    `height:${EXPORT_H}px`,
-    'overflow:hidden',
-    'z-index:-9999',
-    'pointer-events:none',
-  ].join(';');
-  document.body.appendChild(offscreen);
-
-  // 2. Generate the design HTML at full size using renderPreviewHTML()
-  //    which is the same function renderPreview() uses, but with a scale factor
-  offscreen.innerHTML = renderPreviewHTML(S);
-
-  // 3. If there's a photo, load it into the offscreen img elements
-  const imgs = offscreen.querySelectorAll('img[data-photo]');
-  const photoLoad = imgs.length && photoDataUrl
-    ? new Promise(res => {
-        let loaded = 0;
-        imgs.forEach(img => {
-          img.onload = img.onerror = () => { if(++loaded >= imgs.length) res(); };
-          img.src = photoDataUrl;
-        });
-      })
-    : Promise.resolve();
-
-  photoLoad.then(() => {
-    html2canvas(offscreen, {
-      scale: 1,
-      width:  EXPORT_W,
-      height: EXPORT_H,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: DS.bg,
-      logging: false,
-    }).then(canvas => {
-      document.body.removeChild(offscreen);
-      const link = document.createElement('a');
-      link.download = `jordys-story-${Date.now()}.png`;
-      link.href = canvas.toDataURL('image/png', 1.0);
-      link.click();
-      status.textContent = 'downloaded \u2713  1080\u00d71920';
-      setTimeout(() => { status.textContent = ''; }, 3000);
-    }).catch(e => {
-      document.body.removeChild(offscreen);
-      status.textContent = 'export failed';
-      console.error(e);
-    });
-  });
-}
-
-// Generates the full design HTML at a given scale factor S
-// (S=1 = preview size 340x604, S=3.176 = export size 1080x1920)
-function renderPreviewHTML(S){
-  const W = Math.round(340 * S), H = Math.round(604 * S);
-  const pad = Math.round(36 * S);
-
-  const hl      = document.getElementById('dHeadline')?.value || '';
-  const sub     = document.getElementById('dSubtext')?.value  || '';
-  const body    = document.getElementById('dBody')?.value     || '';
-  const cta     = document.getElementById('dCta')?.value      || '';
-  const tag     = document.getElementById('dTag')?.value      || '';
-  const eyebrow = document.getElementById('dEyebrow')?.value  || '';
-  const align   = DS.align;
-  const ta      = align;
-  const fs      = Math.round(DS.fontSize * S * 0.55);
-  const subfs   = Math.round(DS.subFontSize * S * 0.55);
-  const ctafs   = Math.round(10 * S);
-  const brandfs = Math.round(14 * S);
-  const mono    = Math.round(9 * S);
-
-  const alignCSS = `text-align:${ta};`;
-  const lineW    = align === 'center' ? Math.round(130*S) : Math.round(100*S);
-  const lineML   = align === 'center' ? 'auto' : align === 'right' ? 'auto' : '0';
-  const lineMR   = align === 'right'  ? '0'    : 'auto';
-  const selfAlign = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';
-
-  function e(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-  let inner = '';
-
-  if(tpl === 'bold-text'){
-    inner = `
-      <div style="width:100%;height:100%;background:${DS.bg};display:flex;flex-direction:column;justify-content:flex-end;padding:${pad}px;">
-        <div style="height:${Math.round(3*S)}px;background:${DS.line};width:${lineW}px;margin-left:${lineML};margin-right:${lineMR};margin-bottom:${Math.round(24*S)}px;"></div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:${fs}px;color:${DS.txt};letter-spacing:${Math.round(2*S)}px;line-height:1.05;${alignCSS}white-space:pre-line;">${e(hl)||'YOUR HEADLINE'}</div>
-        ${sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${subfs}px;color:${DS.sub};margin-top:${Math.round(16*S)}px;${alignCSS}line-height:1.4;white-space:pre-line;">${e(sub)}</div>`:''}
-        <div style="height:${Math.round(1*S)}px;background:${DS.line};opacity:.4;margin:${Math.round(20*S)}px 0;"></div>
-        ${cta?`<div style="font-family:'Space Mono',monospace;font-size:${ctafs}px;color:${DS.cta};letter-spacing:${Math.round(3*S)}px;text-transform:uppercase;${alignCSS}">${e(cta)}</div>`:''}
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:${brandfs}px;color:${DS.line};letter-spacing:${Math.round(3*S)}px;text-transform:uppercase;${alignCSS}margin-top:${Math.round(18*S)}px;opacity:.8;">JORDY'S CASUARINA</div>
-      </div>`;
-
-  } else if(tpl === 'announcement'){
-    inner = `
-      <div style="width:100%;height:100%;background:${DS.bg};display:flex;flex-direction:column;justify-content:center;padding:${pad}px;">
-        ${tag?`<div style="font-family:'Space Mono',monospace;font-size:${mono}px;letter-spacing:${Math.round(3*S)}px;text-transform:uppercase;color:${DS.line};margin-bottom:${Math.round(16*S)}px;${alignCSS}">${e(tag)}</div>`:''}
-        ${eyebrow?`<div style="font-family:'Space Mono',monospace;font-size:${Math.round(10*S)}px;color:${DS.sub};letter-spacing:${Math.round(2*S)}px;text-transform:uppercase;margin-bottom:${Math.round(10*S)}px;${alignCSS}">${e(eyebrow)}</div>`:''}
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:${fs}px;color:${DS.txt};letter-spacing:${Math.round(2*S)}px;line-height:1.05;${alignCSS}white-space:pre-line;">${e(hl)||'ANNOUNCEMENT'}</div>
-        <div style="height:${Math.round(2*S)}px;background:${DS.line};width:${lineW}px;margin-left:${lineML};margin-right:${lineMR};margin:${Math.round(20*S)}px 0;"></div>
-        ${body?`<div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(DS.subFontSize*S*0.48)}px;color:${DS.sub};${alignCSS}line-height:1.5;white-space:pre-line;">${e(body)}</div>`:''}
-        ${cta?`<div style="font-family:'Space Mono',monospace;font-size:${mono}px;color:${DS.cta};letter-spacing:${Math.round(3*S)}px;text-transform:uppercase;${alignCSS}margin-top:${Math.round(24*S)}px;">${e(cta)}</div>`:''}
-      </div>`;
-
-  } else if(tpl === 'deal'){
-    inner = `
-      <div style="width:100%;height:100%;background:${DS.bg};display:flex;flex-direction:column;justify-content:center;padding:${pad}px;">
-        <div style="background:${DS.line};padding:${Math.round(7*S)}px ${Math.round(14*S)}px;display:inline-block;align-self:${selfAlign};margin-bottom:${Math.round(20*S)}px;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:${Math.round(16*S)}px;letter-spacing:${Math.round(2*S)}px;color:${DS.bg};">${e(tag||'WED &amp; THU ONLY').toUpperCase()}</div>
-        </div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:${fs}px;color:${DS.txt};letter-spacing:${Math.round(2*S)}px;line-height:1.05;${alignCSS}white-space:pre-line;">${e(hl)||'$10 DRINKS'}</div>
-        ${sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${subfs}px;color:${DS.sub};margin-top:${Math.round(16*S)}px;${alignCSS}line-height:1.4;">${e(sub)}</div>`:''}
-        <div style="height:${Math.round(2*S)}px;background:${DS.line};margin:${Math.round(24*S)}px 0;"></div>
-        ${cta?`<div style="font-family:'Space Mono',monospace;font-size:${mono}px;color:${DS.cta};letter-spacing:${Math.round(3*S)}px;text-transform:uppercase;${alignCSS}">${e(cta)}</div>`:''}
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:${brandfs}px;color:${DS.line};letter-spacing:${Math.round(3*S)}px;text-transform:uppercase;${alignCSS}margin-top:${Math.round(16*S)}px;opacity:.8;">JORDY'S CASUARINA</div>
-      </div>`;
-
-  } else if(tpl === 'cta-only'){
-    inner = `
-      <div style="width:100%;height:100%;background:${DS.bg};display:flex;flex-direction:column;justify-content:center;align-items:${selfAlign};padding:${pad}px;">
-        <div style="height:${Math.round(2*S)}px;background:${DS.line};width:${Math.round(120*S)}px;margin-bottom:${Math.round(30*S)}px;"></div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:${fs}px;color:${DS.txt};letter-spacing:${Math.round(2*S)}px;line-height:1.05;${alignCSS}white-space:pre-line;">${e(hl)||'BOOK A TABLE'}</div>
-        ${sub?`<div style="font-family:'Space Mono',monospace;font-size:${Math.round(DS.subFontSize*S*0.4)}px;color:${DS.sub};margin-top:${Math.round(18*S)}px;${alignCSS}letter-spacing:${Math.round(1*S)}px;line-height:1.6;">${e(sub)}</div>`:''}
-        <div style="height:${Math.round(2*S)}px;background:${DS.line};opacity:.4;width:${Math.round(120*S)}px;margin-top:${Math.round(28*S)}px;"></div>
-      </div>`;
-
-  } else if(tpl === 'photo-bottom'){
-    const ph = Math.round(H * (DS.photoHeight/100));
-    const textH = H - ph;
-    const zoom = DS.photoZoom/100;
-    inner = `
-      <div style="width:${W}px;height:${H}px;background:${DS.bg};position:relative;">
-        <div style="position:absolute;top:0;left:0;width:${W}px;height:${ph}px;overflow:hidden;">
-          ${photoDataUrl
-            ? `<img data-photo="1" style="position:absolute;top:50%;left:50%;width:${Math.round(W*zoom)}px;height:${Math.round(ph*zoom)}px;transform:translate(-50%,-50%);object-fit:cover;" crossorigin="anonymous">`
-            : `<div style="width:100%;height:100%;background:#333;"></div>`}
-        </div>
-        <div style="position:absolute;top:${ph}px;left:0;width:${W}px;height:${textH}px;display:flex;flex-direction:column;justify-content:center;padding:${Math.round(pad*0.7)}px ${pad}px;">
-          <div style="height:${Math.round(2*S)}px;background:${DS.line};width:${lineW}px;margin-left:${lineML};margin-right:${lineMR};margin-bottom:${Math.round(14*S)}px;"></div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:${Math.round(DS.fontSize*S*0.5)}px;color:${DS.txt};letter-spacing:${Math.round(2*S)}px;line-height:1.05;${alignCSS}white-space:pre-line;">${e(hl)||'HEADLINE'}</div>
-          ${sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(DS.subFontSize*S*0.45)}px;color:${DS.sub};margin-top:${Math.round(10*S)}px;${alignCSS}line-height:1.4;">${e(sub)}</div>`:''}
-          ${cta?`<div style="font-family:'Space Mono',monospace;font-size:${Math.round(8*S)}px;color:${DS.cta};letter-spacing:${Math.round(2*S)}px;text-transform:uppercase;${alignCSS}margin-top:${Math.round(14*S)}px;">${e(cta)}</div>`:''}
-        </div>
-      </div>`;
-
-  } else if(tpl === 'photo-overlay'){
-    const zoom2 = DS.photoZoom/100;
-    inner = `
-      <div style="width:${W}px;height:${H}px;position:relative;overflow:hidden;">
-        ${photoDataUrl
-          ? `<img data-photo="1" style="position:absolute;top:50%;left:50%;width:${Math.round(W*zoom2)}px;height:${Math.round(H*zoom2)}px;transform:translate(-50%,-50%);object-fit:cover;" crossorigin="anonymous">`
-          : `<div style="position:absolute;inset:0;background:${DS.bg};"></div>`}
-        <div style="position:absolute;inset:0;background:rgba(0,0,0,${DS.overlayOpacity/100});"></div>
-        <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:${pad}px;">
-          <div style="height:${Math.round(2*S)}px;background:${DS.line};width:${lineW}px;margin-left:${lineML};margin-right:${lineMR};margin-bottom:${Math.round(16*S)}px;"></div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:${Math.round(DS.fontSize*S*0.52)}px;color:${DS.txt};letter-spacing:${Math.round(2*S)}px;line-height:1.05;${alignCSS}white-space:pre-line;">${e(hl)||'HEADLINE'}</div>
-          ${sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(DS.subFontSize*S*0.47)}px;color:${DS.sub};margin-top:${Math.round(12*S)}px;${alignCSS}line-height:1.4;">${e(sub)}</div>`:''}
-          <div style="height:${Math.round(1*S)}px;background:${DS.line};opacity:.4;margin:${Math.round(16*S)}px 0;"></div>
-          ${cta?`<div style="font-family:'Space Mono',monospace;font-size:${mono}px;color:${DS.cta};letter-spacing:${Math.round(3*S)}px;text-transform:uppercase;${alignCSS}">${e(cta)}</div>`:''}
-        </div>
-      </div>`;
-  }
-
-  return `<div style="width:${W}px;height:${H}px;position:relative;overflow:hidden;font-family:'DM Sans',sans-serif;">${inner}</div>`;
+  showToast('reset \u2713');
 }
 
 
