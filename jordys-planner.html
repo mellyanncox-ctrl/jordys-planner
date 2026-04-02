@@ -81,9 +81,9 @@ input,textarea,select{font-family:inherit;}
 
 /* ── CALENDAR ── */
 .cal-wrap{padding:20px 28px;flex:1;overflow-y:auto;}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;background:var(--border);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(100px,180px);gap:2px;background:var(--border);}
 .cal-dow{background:#f4f1ed;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);padding:8px 6px;text-align:center;}
-.cal-cell{background:var(--white);min-height:100px;padding:6px;position:relative;cursor:default;}
+.cal-cell{background:var(--white);min-height:100px;max-height:180px;padding:6px;position:relative;cursor:default;overflow:hidden;}
 .cal-cell.today{background:#fff8f5;outline:1px solid var(--orange-dim);}
 .cal-cell.other-month{background:#f4f1ed;opacity:.5;}
 .cal-date{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
@@ -94,7 +94,7 @@ input,textarea,select{font-family:inherit;}
 .cal-add-post,.cal-add-story{background:var(--orange);color:#fff;font-family:'Space Mono',monospace;font-size:7px;letter-spacing:1px;border:none;border-radius:1px;padding:2px 5px;cursor:pointer;text-transform:uppercase;}
 .cal-add-story{background:transparent;color:var(--muted);border:1px solid var(--border);}
 .cal-add-story:hover{color:var(--orange);border-color:var(--orange-dim);}
-.cal-posts{display:flex;flex-direction:column;gap:2px;}
+.cal-posts{display:flex;flex-direction:column;gap:2px;overflow:hidden;max-height:140px;}
 .post-chip{border-radius:2px;cursor:pointer;transition:all .15s;border:1px solid transparent;}
 .post-chip:hover{border-color:var(--orange-dim);}
 .post-chip.no-photo{padding:3px 7px;font-family:'Space Mono',monospace;font-size:8px;display:flex;align-items:center;gap:4px;}
@@ -1171,33 +1171,32 @@ function selectStatusByValue(val){document.querySelectorAll('.status-opt').forEa
 function sanitise(str){return String(str||'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').replace(/\u2026/g,'...').replace(/[^\x00-\x7F]/g,'').trim();}
 
 function getBrandSystem(){
-  const venue=document.getElementById('setVenue')?.value||"Jordy's Casuarina";
-  const hours=document.getElementById('setHours')?.value||'Wed–Sun 5pm–9pm';
-  const booking=document.getElementById('setBooking')?.value||'jordyscasuarina.com';
-  return `You are a social media strategist for ${venue}, a sourdough pizza restaurant in Casuarina, Northern NSW. Open ${hours}. Bookings: ${booking}.
-
-BRAND VOICE: dark, confident, direct. Not salesy, not try-hard. Like the restaurant itself — high quality without announcing it.
+  const venue   = document.getElementById('setVenue')?.value    || "Jordy's Casuarina";
+  const hours   = document.getElementById('setHours')?.value    || 'Wed–Sun 5pm–9pm';
+  const booking = document.getElementById('setBooking')?.value  || 'jordyscasuarina.com';
+  const voice   = document.getElementById('setBrandVoice')?.value.trim() || '';
+  const menu    = getMenuText();
+  const voiceBlock = voice || `BRAND VOICE: dark, confident, direct. Not salesy. High quality without announcing it.
 
 CONTENT RULES:
 - No discounts or percentage-off framing
 - No hype words (amazing, epic, insane, must-try)
 - No exclamation marks in feed posts
-- Photos only — no video or reels
-- Stories can have soft CTAs, feed posts cannot
-- Drinks deal ($10 beer/wine/margaritas Wed & Thu with any pizza) is the midweek weapon — use it sparingly and bluntly
+- No CTAs in feed posts
+- Drinks deal ($10 Wed/Thu) used sparingly and bluntly
 
 CAPTION STYLE:
-- Hook on line 1 — stops the scroll immediately
-- 4–8 lines total, short line breaks
-- Direct, warm, conversational — like someone who knows food and doesn't need to impress you
-- End with a question or open thought that invites engagement
-- Build feeling around the moment, not a description of the dish
+- Hook on line 1 that stops the scroll
+- 4-8 lines, short line breaks
+- Build feeling around the moment, not just a description
+- End with a question that invites engagement`;
 
-GOOD EXAMPLES:
-"the billinudgel is the kind of pizza that ends arguments. pepperoni, 'nduja, bourbon jalapeños, honey. fire and filth in the same bite. what are you having?"
-"wednesday at jordy's. drinks are $10. beer, wine, margaritas — with any pizza. no catch. no dress code. open from 5."
+  return `You are a social media strategist for ${venue}, a sourdough pizza restaurant in Casuarina NSW. Open ${hours}. Bookings: ${booking}.
 
-Menu context: Sourdough pizzas $27-34, including Billinudgel (pepperoni/'nduja/jalapeños/honey), Brunswick (tiger prawns/clams/'nduja), Stokers Siding (mushrooms), Neighbourhood Gnocchi. Drinks deal Wed/Thu.`;
+${voiceBlock}
+
+MENU:
+${menu}`;
 }
 
 async function callClaude(system,prompt,maxTokens=1000){
@@ -1581,8 +1580,12 @@ function autoSave(){
     try{
       await sbSavePosts();
       localStorage.setItem('jordys2_settings',JSON.stringify({
-        weekOf: document.getElementById('genWeekOf').value,
-        savedAt: new Date().toISOString(),
+        weekOf:     document.getElementById('genWeekOf').value,
+        brandVoice: document.getElementById('setBrandVoice')?.value || '',
+        venue:      document.getElementById('setVenue')?.value || '',
+        hours:      document.getElementById('setHours')?.value || '',
+        booking:    document.getElementById('setBooking')?.value || '',
+        savedAt:    new Date().toISOString(),
       }));
       pill.textContent='saved';pill.className='save-pill ok';
       setTimeout(()=>{pill.textContent='saved';pill.className='save-pill';},2000);
@@ -1611,6 +1614,10 @@ async function loadSaved(){
     try{
       const s=JSON.parse(settings);
       if(s.weekOf){document.getElementById('genWeekOf').value=s.weekOf;document.getElementById('sidebarWeek').textContent=s.weekOf;}
+      if(s.brandVoice && document.getElementById('setBrandVoice')) document.getElementById('setBrandVoice').value=s.brandVoice;
+      if(s.venue   && document.getElementById('setVenue'))      document.getElementById('setVenue').value=s.venue;
+      if(s.hours   && document.getElementById('setHours'))      document.getElementById('setHours').value=s.hours;
+      if(s.booking && document.getElementById('setBooking'))    document.getElementById('setBooking').value=s.booking;
     }catch(e){}
   }
 }
