@@ -1459,7 +1459,21 @@ function renderLibrary(){
   }).join('');
 }
 
-function downloadImage(src,filename){const a=document.createElement('a');a.href=src;a.download=filename;a.click();}
+async function downloadImage(src,filename){
+  try{
+    // Fetch as blob to bypass CORS download restrictions on Cloudinary URLs
+    const res=await fetch(src);
+    const blob=await res.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=filename;a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){
+    // Fallback: open in new tab so user can save manually
+    window.open(src,'_blank');
+    showToast('right-click the image to save');
+  }
+}
 
 function getArchive(){try{return JSON.parse(localStorage.getItem('jordys2_archive')||'[]');}catch(e){return[];}}
 function saveArchiveData(a){try{localStorage.setItem('jordys2_archive',JSON.stringify(a));}catch(e){showToast('archive storage full');}}
