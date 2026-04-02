@@ -1624,196 +1624,177 @@ function resetDesigner(){
 }
 
 function downloadPNG(){
-  const status=document.getElementById('dlStatus');
-  status.textContent='rendering...';
+  const status = document.getElementById('dlStatus');
+  status.textContent = 'rendering...';
 
-  const W=1080, H=1920;
-  const canvas=document.getElementById('exportCanvas');
-  canvas.width=W; canvas.height=H;
-  const ctx=canvas.getContext('2d');
+  const W = 1080, H = 1920;
+  const canvas = document.getElementById('exportCanvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
 
-  const hl  = document.getElementById('dHeadline')?.value||'';
-  const sub = document.getElementById('dSubtext')?.value||'';
-  const body= document.getElementById('dBody')?.value||'';
-  const cta = document.getElementById('dCta')?.value||'';
-  const tag = document.getElementById('dTag')?.value||'';
-  const eyebrow=document.getElementById('dEyebrow')?.value||'';
-  const align=DS.align;
-  const pad=100;
+  const hl      = document.getElementById('dHeadline')?.value || '';
+  const sub     = document.getElementById('dSubtext')?.value  || '';
+  const body    = document.getElementById('dBody')?.value     || '';
+  const cta     = document.getElementById('dCta')?.value      || '';
+  const tag     = document.getElementById('dTag')?.value      || '';
+  const eyebrow = document.getElementById('dEyebrow')?.value  || '';
+  const align   = DS.align;
+  const pad     = 108;
 
-  function wrapText(ctx, text, x, y, maxW, lineH){
-    const words=text.split(' ');let line='';let lines=[];
-    for(let w of words){const test=line+(line?' ':'')+w;if(ctx.measureText(test).width>maxW&&line){lines.push(line);line=w;}else line=test;}
-    if(line)lines.push(line);
-    lines.forEach((l,i)=>ctx.fillText(l,x,y+i*lineH));
+  const ta = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left';
+  function getX(){ return align === 'center' ? W/2 : align === 'right' ? W - pad : pad; }
+
+  function wrapText(text, x, y, maxW, lineH){
+    const words = text.split(' ');
+    let line = '', lines = [];
+    for(let w of words){
+      const test = line + (line ? ' ' : '') + w;
+      if(ctx.measureText(test).width > maxW && line){ lines.push(line); line = w; }
+      else line = test;
+    }
+    if(line) lines.push(line);
+    lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineH));
     return lines.length;
   }
 
-  function getX(w){return align==='center'?(W/2):align==='right'?(W-pad):pad;}
-  const ta=align==='center'?'center':align==='right'?'right':'left';
+  function doExport(){
+    const link = document.createElement('a');
+    link.download = `jordys-story-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png', 1.0);
+    link.click();
+    status.textContent = 'downloaded ✓  1080×1920';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  }
 
-  function drawDesign(){
-    ctx.clearRect(0,0,W,H);
+  function drawText(){
+    ctx.textAlign = ta;
+    const x = getX();
 
-    if(tpl==='bold-text'){
-      // Background
-      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
-      // Divider line
-      const lineW=align==='center'?420:300;
-      const lx=align==='center'?(W-lineW)/2:align==='right'?W-pad-lineW:pad;
-      ctx.fillStyle=DS.line; ctx.fillRect(lx,H-540,lineW,6);
-      // Headline
-      ctx.fillStyle=DS.txt;
-      ctx.font=`700 ${DS.fontSize*2.8}px 'Bebas Neue', sans-serif`;
-      ctx.textAlign=ta;
-      const rows=wrapText(ctx,hl||'YOUR HEADLINE',getX(),H-480,W-pad*2,DS.fontSize*3.2);
-      // Subtext
-      if(sub){ctx.fillStyle=DS.sub;ctx.font=`400 ${DS.subFontSize*2}px 'DM Sans',sans-serif`;ctx.textAlign=ta;wrapText(ctx,sub,getX(),H-480+rows*DS.fontSize*3.2+40,W-pad*2,DS.subFontSize*2.4);}
-      // Thin separator
-      ctx.fillStyle=DS.line; ctx.globalAlpha=0.4; ctx.fillRect(pad,H-160,W-pad*2,3); ctx.globalAlpha=1;
-      // CTA
-      if(cta){ctx.fillStyle=DS.cta;ctx.font=`500 ${32}px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(cta.toUpperCase(),getX(),H-110);}
-      // Brand
-      ctx.fillStyle=DS.line; ctx.globalAlpha=0.8; ctx.font=`700 ${38}px 'Bebas Neue',sans-serif`;ctx.textAlign=ta;ctx.fillText("JORDY'S CASUARINA",getX(),H-56); ctx.globalAlpha=1;
-
-    } else if(tpl==='deal'){
-      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
-      // Tag badge
-      const tagText=(tag||'WED & THU ONLY').toUpperCase();
-      ctx.font=`700 36px 'Bebas Neue',sans-serif`;
-      const tagW=ctx.measureText(tagText).width+60;
-      const tagX=align==='center'?(W-tagW)/2:align==='right'?W-pad-tagW:pad;
-      ctx.fillStyle=DS.line; ctx.fillRect(tagX,H/2-320,tagW,70);
-      ctx.fillStyle=DS.bg; ctx.textAlign='left'; ctx.fillText(tagText,tagX+30,H/2-270);
-      // Headline
-      ctx.fillStyle=DS.txt; ctx.font=`700 ${DS.fontSize*2.8}px 'Bebas Neue',sans-serif`; ctx.textAlign=ta;
-      const rows=wrapText(ctx,hl||'$10 DRINKS',getX(),H/2-180,W-pad*2,DS.fontSize*3.2);
-      // Subtext
-      if(sub){ctx.fillStyle=DS.sub;ctx.font=`400 ${DS.subFontSize*2}px 'DM Sans',sans-serif`;ctx.textAlign=ta;wrapText(ctx,sub,getX(),H/2-180+rows*DS.fontSize*3.2+50,W-pad*2,DS.subFontSize*2.4);}
-      // Divider
-      ctx.fillStyle=DS.line; ctx.fillRect(pad,H/2+200,W-pad*2,6);
-      // CTA
-      if(cta){ctx.fillStyle=DS.cta;ctx.font=`500 32px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(cta.toUpperCase(),getX(),H/2+280);}
-      // Brand
-      ctx.fillStyle=DS.line;ctx.globalAlpha=0.8;ctx.font=`700 38px 'Bebas Neue',sans-serif`;ctx.textAlign=ta;ctx.fillText("JORDY'S CASUARINA",getX(),H/2+360);ctx.globalAlpha=1;
-
-    } else if(tpl==='cta-only'){
-      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle=DS.line; ctx.fillRect(pad,H/2-220,300,6);
-      ctx.fillStyle=DS.txt; ctx.font=`700 ${DS.fontSize*2.8}px 'Bebas Neue',sans-serif`; ctx.textAlign=ta;
-      const rows=wrapText(ctx,hl||'BOOK A TABLE',getX(),H/2-160,W-pad*2,DS.fontSize*3.2);
-      if(sub){ctx.fillStyle=DS.sub;ctx.font=`500 ${DS.subFontSize*1.8}px 'Space Mono',monospace`;ctx.textAlign=ta;wrapText(ctx,sub,getX(),H/2-160+rows*DS.fontSize*3.2+60,W-pad*2,DS.subFontSize*2.2);}
-      ctx.fillStyle=DS.line;ctx.globalAlpha=0.4;ctx.fillRect(pad,H/2+200,300,6);ctx.globalAlpha=1;
-
-    } else if(tpl==='photo-bottom'){
-      // Draw photo top portion
-      const photoH=Math.round(H*(DS.photoHeight/100));
-      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
-      if(photoDataUrl){
-        const img=new Image();
-        img.onload=()=>{
-          // Draw photo scaled to fill
-          const zoom=DS.photoZoom/100;
-          const dw=W*zoom, dh=photoH*zoom;
-          const dx=(W-dw)/2, dy=(photoH-dh)/2;
-          ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,photoH); ctx.clip();
-          ctx.drawImage(img,dx,dy,dw,dh);
-          ctx.restore();
-          drawPhotoBottomText(photoH);
-          exportCanvas();
-        };
-        img.src=photoDataUrl;
-        return;
+    if(tpl === 'bold-text'){
+      ctx.fillStyle = DS.bg; ctx.fillRect(0,0,W,H);
+      const lineW = align === 'center' ? 420 : 300;
+      const lx = align === 'center' ? (W-lineW)/2 : align === 'right' ? W-pad-lineW : pad;
+      ctx.fillStyle = DS.line; ctx.fillRect(lx, H-580, lineW, 7);
+      ctx.fillStyle = DS.txt;
+      ctx.font = `700 ${DS.fontSize * 2.8}px "Bebas Neue", sans-serif`;
+      const rows = wrapText(hl || 'YOUR HEADLINE', x, H-510, W-pad*2, DS.fontSize*3.2);
+      if(sub){
+        ctx.fillStyle = DS.sub;
+        ctx.font = `400 ${DS.subFontSize * 2}px "DM Sans", sans-serif`;
+        wrapText(sub, x, H-510 + rows*DS.fontSize*3.2 + 50, W-pad*2, DS.subFontSize*2.4);
       }
-      drawPhotoBottomText(photoH);
-      exportCanvas();
+      ctx.fillStyle = DS.line; ctx.globalAlpha = 0.35; ctx.fillRect(pad, H-160, W-pad*2, 4); ctx.globalAlpha = 1;
+      if(cta){ ctx.fillStyle = DS.cta; ctx.font = `400 34px "Space Mono", monospace`; ctx.fillText(cta.toUpperCase(), x, H-110); }
+      ctx.fillStyle = DS.line; ctx.globalAlpha = 0.7; ctx.font = `700 40px "Bebas Neue", sans-serif`; ctx.fillText("JORDY'S CASUARINA", x, H-56); ctx.globalAlpha = 1;
 
-    } else if(tpl==='photo-overlay'){
-      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
-      if(photoDataUrl){
-        const img=new Image();
-        img.onload=()=>{
-          const zoom=DS.photoZoom/100;
-          const dw=W*zoom, dh=H*zoom;
-          const dx=(W-dw)/2, dy=(H-dh)/2;
-          ctx.drawImage(img,dx,dy,dw,dh);
-          // Dark overlay
-          ctx.fillStyle=`rgba(0,0,0,${DS.overlayOpacity/100})`; ctx.fillRect(0,0,W,H);
-          drawOverlayText();
-          exportCanvas();
-        };
-        img.src=photoDataUrl;
-        return;
-      }
-      drawOverlayText();
-      exportCanvas();
+    } else if(tpl === 'deal'){
+      ctx.fillStyle = DS.bg; ctx.fillRect(0,0,W,H);
+      const tagText = (tag || 'WED & THU ONLY').toUpperCase();
+      ctx.font = `700 40px "Bebas Neue", sans-serif`;
+      const tagW = ctx.measureText(tagText).width + 70;
+      const tagX = align === 'center' ? (W-tagW)/2 : align === 'right' ? W-pad-tagW : pad;
+      ctx.fillStyle = DS.line; ctx.fillRect(tagX, H/2-360, tagW, 80);
+      ctx.fillStyle = DS.bg; ctx.textAlign = 'left'; ctx.fillText(tagText, tagX+35, H/2-300);
+      ctx.textAlign = ta;
+      ctx.fillStyle = DS.txt; ctx.font = `700 ${DS.fontSize * 2.8}px "Bebas Neue", sans-serif`;
+      const rows = wrapText(hl || '$10 DRINKS', x, H/2-200, W-pad*2, DS.fontSize*3.2);
+      if(sub){ ctx.fillStyle = DS.sub; ctx.font = `400 ${DS.subFontSize*2}px "DM Sans", sans-serif`; wrapText(sub, x, H/2-200+rows*DS.fontSize*3.2+50, W-pad*2, DS.subFontSize*2.4); }
+      ctx.fillStyle = DS.line; ctx.fillRect(pad, H/2+240, W-pad*2, 6);
+      if(cta){ ctx.fillStyle = DS.cta; ctx.font = `400 34px "Space Mono", monospace`; ctx.fillText(cta.toUpperCase(), x, H/2+310); }
+      ctx.fillStyle = DS.line; ctx.globalAlpha = 0.7; ctx.font = `700 40px "Bebas Neue", sans-serif`; ctx.fillText("JORDY'S CASUARINA", x, H/2+390); ctx.globalAlpha = 1;
 
-    } else if(tpl==='announcement'){
-      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
-      if(tag){ctx.fillStyle=DS.line;ctx.font=`500 36px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(tag.toUpperCase(),getX(),H/2-340);}
-      if(eyebrow){ctx.fillStyle=DS.sub;ctx.font=`500 40px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(eyebrow.toUpperCase(),getX(),H/2-260);}
-      ctx.fillStyle=DS.txt; ctx.font=`700 ${DS.fontSize*2.8}px 'Bebas Neue',sans-serif`; ctx.textAlign=ta;
-      const rows=wrapText(ctx,hl||'ANNOUNCEMENT',getX(),H/2-180,W-pad*2,DS.fontSize*3.2);
-      const lineW=align==='center'?380:280;
-      const lx2=align==='center'?(W-lineW)/2:align==='right'?W-pad-lineW:pad;
-      ctx.fillStyle=DS.line; ctx.fillRect(lx2,H/2-180+rows*DS.fontSize*3.2+40,lineW,6);
-      if(body){ctx.fillStyle=DS.sub;ctx.font=`400 ${DS.subFontSize*1.8}px 'DM Sans',sans-serif`;ctx.textAlign=ta;wrapText(ctx,body,getX(),H/2-180+rows*DS.fontSize*3.2+100,W-pad*2,DS.subFontSize*2.2);}
-      if(cta){ctx.fillStyle=DS.cta;ctx.font=`500 32px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(cta.toUpperCase(),getX(),H/2+360);}
+    } else if(tpl === 'cta-only'){
+      ctx.fillStyle = DS.bg; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = DS.line; ctx.fillRect(align==='center'?(W-300)/2:pad, H/2-250, 300, 6);
+      ctx.fillStyle = DS.txt; ctx.font = `700 ${DS.fontSize*2.8}px "Bebas Neue", sans-serif`;
+      const rows = wrapText(hl || 'BOOK A TABLE', x, H/2-180, W-pad*2, DS.fontSize*3.2);
+      if(sub){ ctx.fillStyle = DS.sub; ctx.font = `500 ${DS.subFontSize*1.8}px "Space Mono", monospace`; wrapText(sub, x, H/2-180+rows*DS.fontSize*3.2+60, W-pad*2, DS.subFontSize*2.2); }
+      ctx.fillStyle = DS.line; ctx.globalAlpha = 0.35; ctx.fillRect(align==='center'?(W-300)/2:pad, H/2+200, 300, 6); ctx.globalAlpha = 1;
+
+    } else if(tpl === 'announcement'){
+      ctx.fillStyle = DS.bg; ctx.fillRect(0,0,W,H);
+      if(tag){ ctx.fillStyle = DS.line; ctx.font = `400 36px "Space Mono", monospace`; ctx.fillText(tag.toUpperCase(), x, H/2-360); }
+      if(eyebrow){ ctx.fillStyle = DS.sub; ctx.font = `500 42px "Space Mono", monospace`; ctx.fillText(eyebrow.toUpperCase(), x, H/2-280); }
+      ctx.fillStyle = DS.txt; ctx.font = `700 ${DS.fontSize*2.8}px "Bebas Neue", sans-serif`;
+      const rows = wrapText(hl || 'ANNOUNCEMENT', x, H/2-200, W-pad*2, DS.fontSize*3.2);
+      const lx2 = align==='center'?(W-380)/2:align==='right'?W-pad-380:pad;
+      ctx.fillStyle = DS.line; ctx.fillRect(lx2, H/2-200+rows*DS.fontSize*3.2+40, 380, 6);
+      if(body){ ctx.fillStyle = DS.sub; ctx.font = `400 ${DS.subFontSize*1.8}px "DM Sans", sans-serif`; wrapText(body, x, H/2-200+rows*DS.fontSize*3.2+100, W-pad*2, DS.subFontSize*2.2); }
+      if(cta){ ctx.fillStyle = DS.cta; ctx.font = `400 34px "Space Mono", monospace`; ctx.fillText(cta.toUpperCase(), x, H/2+380); }
+
+    } else if(tpl === 'photo-bottom'){
+      const photoH = Math.round(H * (DS.photoHeight / 100));
+      ctx.fillStyle = DS.bg; ctx.fillRect(0, 0, W, H);
+      const lineW2 = 300;
+      const lxp = align==='center'?(W-lineW2)/2:align==='right'?W-pad-lineW2:pad;
+      ctx.fillStyle = DS.line; ctx.fillRect(lxp, photoH + 90, lineW2, 6);
+      ctx.fillStyle = DS.txt; ctx.font = `700 ${DS.fontSize*2.5}px "Bebas Neue", sans-serif`;
+      const rows2 = wrapText(hl || 'HEADLINE', x, photoH+160, W-pad*2, DS.fontSize*2.9);
+      if(sub){ ctx.fillStyle = DS.sub; ctx.font = `400 ${DS.subFontSize*1.9}px "DM Sans", sans-serif`; wrapText(sub, x, photoH+160+rows2*DS.fontSize*2.9+50, W-pad*2, DS.subFontSize*2.3); }
+      if(cta){ ctx.fillStyle = DS.cta; ctx.font = `400 32px "Space Mono", monospace`; ctx.fillText(cta.toUpperCase(), x, H-120); }
+
+    } else if(tpl === 'photo-overlay'){
+      // Overlay already drawn — just add text at bottom
+      ctx.fillStyle = DS.bg; ctx.fillRect(0,0,W,H);
+      const lineWo = 300;
+      const lxo = align==='center'?(W-lineWo)/2:align==='right'?W-pad-lineWo:pad;
+      ctx.fillStyle = DS.line; ctx.fillRect(lxo, H-580, lineWo, 6);
+      ctx.fillStyle = DS.txt; ctx.font = `700 ${DS.fontSize*2.7}px "Bebas Neue", sans-serif`;
+      const rows3 = wrapText(hl || 'HEADLINE', x, H-500, W-pad*2, DS.fontSize*3.1);
+      if(sub){ ctx.fillStyle = DS.sub; ctx.font = `400 ${DS.subFontSize*1.9}px "DM Sans", sans-serif`; wrapText(sub, x, H-500+rows3*DS.fontSize*3.1+50, W-pad*2, DS.subFontSize*2.3); }
+      ctx.fillStyle = DS.line; ctx.globalAlpha = 0.35; ctx.fillRect(pad, H-160, W-pad*2, 4); ctx.globalAlpha = 1;
+      if(cta){ ctx.fillStyle = DS.cta; ctx.font = `400 32px "Space Mono", monospace`; ctx.fillText(cta.toUpperCase(), x, H-110); }
     }
-
-  function drawPhotoBottomText(photoH){
-    const lineW=280;
-    const lx=align==='center'?(W-lineW)/2:align==='right'?W-pad-lineW:pad;
-    ctx.fillStyle=DS.line; ctx.fillRect(lx,photoH+80,lineW,5);
-    ctx.fillStyle=DS.txt; ctx.font=`700 ${DS.fontSize*2.4}px 'Bebas Neue',sans-serif`; ctx.textAlign=ta;
-    const rows=wrapText(ctx,hl||'HEADLINE',getX(),photoH+140,W-pad*2,DS.fontSize*2.8);
-    if(sub){ctx.fillStyle=DS.sub;ctx.font=`400 ${DS.subFontSize*1.8}px 'DM Sans',sans-serif`;ctx.textAlign=ta;wrapText(ctx,sub,getX(),photoH+140+rows*DS.fontSize*2.8+40,W-pad*2,DS.subFontSize*2.2);}
-    if(cta){ctx.fillStyle=DS.cta;ctx.font=`500 30px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(cta.toUpperCase(),getX(),H-100);}
   }
 
-  function drawOverlayText(){
-    const lineW=280;
-    const lx=align==='center'?(W-lineW)/2:align==='right'?W-pad-lineW:pad;
-    ctx.fillStyle=DS.line; ctx.fillRect(lx,H-560,lineW,5);
-    ctx.fillStyle=DS.txt; ctx.font=`700 ${DS.fontSize*2.6}px 'Bebas Neue',sans-serif`; ctx.textAlign=ta;
-    const rows=wrapText(ctx,hl||'HEADLINE',getX(),H-480,W-pad*2,DS.fontSize*3);
-    if(sub){ctx.fillStyle=DS.sub;ctx.font=`400 ${DS.subFontSize*1.8}px 'DM Sans',sans-serif`;ctx.textAlign=ta;wrapText(ctx,sub,getX(),H-480+rows*DS.fontSize*3+40,W-pad*2,DS.subFontSize*2.2);}
-    ctx.fillStyle=DS.line;ctx.globalAlpha=0.4;ctx.fillRect(pad,H-160,W-pad*2,3);ctx.globalAlpha=1;
-    if(cta){ctx.fillStyle=DS.cta;ctx.font=`500 32px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(cta.toUpperCase(),getX(),H-110);}
+  function drawWithPhoto(drawFn){
+    if(!photoDataUrl){ drawFn(); doExport(); return; }
+    const img = new Image();
+    img.onload = () => {
+      if(tpl === 'photo-bottom'){
+        const photoH = Math.round(H * (DS.photoHeight / 100));
+        ctx.fillStyle = DS.bg; ctx.fillRect(0,0,W,H);
+        // cover-fill the photo zone
+        const iAR = img.width / img.height;
+        const zAR = W / photoH;
+        let sw, sh, sx, sy;
+        if(iAR > zAR){ sh = img.height; sw = sh * zAR; sx = (img.width - sw)/2; sy = 0; }
+        else { sw = img.width; sh = sw / zAR; sx = 0; sy = (img.height - sh)/2; }
+        const zoom = DS.photoZoom / 100;
+        sw = sw / zoom; sh = sh / zoom;
+        sx = (img.width - sw) / 2; sy = (img.height - sh) / 2;
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, photoH);
+      } else {
+        // photo-overlay: cover fill entire canvas
+        ctx.fillStyle = DS.bg; ctx.fillRect(0,0,W,H);
+        const iAR = img.width / img.height;
+        const cAR = W / H;
+        let sw, sh, sx, sy;
+        if(iAR > cAR){ sh = img.height; sw = sh * cAR; sx = (img.width-sw)/2; sy = 0; }
+        else { sw = img.width; sh = sw / cAR; sx = 0; sy = (img.height-sh)/2; }
+        const zoom = DS.photoZoom / 100;
+        sw = sw / zoom; sh = sh / zoom;
+        sx = (img.width - sw) / 2; sy = (img.height - sh) / 2;
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+        ctx.fillStyle = `rgba(0,0,0,${DS.overlayOpacity/100})`; ctx.fillRect(0,0,W,H);
+      }
+      drawFn();
+      doExport();
+    };
+    img.onerror = () => { drawFn(); doExport(); };
+    img.src = photoDataUrl;
   }
 
-  function exportCanvas(){
-    const link=document.createElement('a');
-    link.download=`jordys-story-${Date.now()}.png`;
-    link.href=canvas.toDataURL('image/png',1.0);
-    link.click();
-    status.textContent='downloaded ✓ (1080×1920)';
-    setTimeout(()=>{status.textContent='';},3000);
-  }
-
-    // For text-only templates, export directly from canvas
-    exportCanvas();
-  }
-
-  function exportCanvas(){
-    const link=document.createElement('a');
-    link.download=`jordys-story-${Date.now()}.png`;
-    link.href=canvas.toDataURL('image/png',1.0);
-    link.click();
-    status.textContent='downloaded ✓ (1080×1920)';
-    setTimeout(()=>{status.textContent='';},3000);
-  }
-
-  // Wait for fonts
-  document.fonts.ready.then(()=>{
-    if(photoDataUrl && (tpl==='photo-bottom'||tpl==='photo-overlay')){
-      drawDesign();
+  document.fonts.ready.then(() => {
+    if(tpl === 'photo-bottom' || tpl === 'photo-overlay'){
+      drawWithPhoto(drawText);
     } else {
-      drawDesign();
+      drawText();
+      doExport();
     }
   });
 }
-
 // ═══════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════
