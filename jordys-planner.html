@@ -632,7 +632,73 @@ input,textarea,select{font-family:inherit;}
           </div>
         </div>
         <div class="settings-card">
-          <div class="settings-title">📋 Menu (AI uses this to generate content)</div>
+          <div class="settings-title">&#10000;&#65039; Brand Voice (AI reads this for every caption)</div>
+          <div class="settings-field">
+            <label>Tone, rules, examples — edit freely, saves automatically</label>
+            <textarea id="setBrandVoice" rows="30" style="resize:vertical;font-size:11px;line-height:1.8;">JORDY'S CASUARINA — BRAND VOICE
+
+THE CORE
+gritty, confident, a little chaotic — but always in control.
+feels like a late-night bar, not a family pizzeria.
+someone talking across the table, not a brand writing at you.
+effortless. never trying too hard.
+
+TONE PILLARS
+
+1. casual but sharp
+— always lowercase
+— short, punchy lines
+— reads like conversation, not copy
+example: midweek plans? yeah — this is better.
+
+2. cheeky + slightly unhinged (but intentional)
+— pushes just far enough to feel bold
+— never cringe, never try-hard
+— a bit of attitude, but still likeable
+example: don't just dip the crust. fold the whole slice and commit.
+
+3. fomo without saying "don't miss out"
+— creates pull, not pressure
+— assumes you're already coming
+example: tables filling. drinks cold. do what you want with that.
+
+4. anti-corporate / anti-polished
+— no buzzwords, no "we're excited to announce" energy
+— nothing over-explained
+— if it sounds like marketing, it's wrong.
+
+5. food confidence (borderline cocky)
+— doesn't describe the food in detail
+— assumes it's good — doesn't need to convince you
+example: new pizza on. you'll figure it out.
+
+6. culture > product
+— it's about being there, not just eating
+— pizza is the vehicle, not the story
+example: wednesdays look better here.
+
+LANGUAGE RULES (NON-NEGOTIABLE)
+— all lowercase
+— no emojis (or very rare, used ironically)
+— no exclamation marks
+— no long paragraphs
+— no brand speak, no over-describing ingredients
+— no CTAs in feed posts
+
+NEVER SOUND LIKE
+"we're excited to introduce…" / "crafted with the finest ingredients…" / "perfect for the whole family…"
+
+THE $10 DEAL (WED & THU)
+state it as fact. never hype it.
+right: drinks are $10 tonight. beer, wine, margaritas. with any pizza.
+wrong: don't miss our AMAZING drinks deal!!
+
+THE ONE-LINE DEFINITION
+jordy's sounds like the place you go when you don't want to be told what to do — but you already know where you're going.</textarea>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-title">&#128203; Menu (AI uses this to generate content)</div>
           <div class="settings-field">
             <textarea id="setMenu" rows="22" style="resize:vertical;">JORDY'S CASUARINA — FULL MENU
 Wed–Sun 5pm–9pm
@@ -1176,20 +1242,7 @@ function getBrandSystem(){
   const booking = document.getElementById('setBooking')?.value  || 'jordyscasuarina.com';
   const voice   = document.getElementById('setBrandVoice')?.value.trim() || '';
   const menu    = getMenuText();
-  const voiceBlock = voice || `BRAND VOICE: dark, confident, direct. Not salesy. High quality without announcing it.
-
-CONTENT RULES:
-- No discounts or percentage-off framing
-- No hype words (amazing, epic, insane, must-try)
-- No exclamation marks in feed posts
-- No CTAs in feed posts
-- Drinks deal ($10 Wed/Thu) used sparingly and bluntly
-
-CAPTION STYLE:
-- Hook on line 1 that stops the scroll
-- 4-8 lines, short line breaks
-- Build feeling around the moment, not just a description
-- End with a question that invites engagement`;
+  const voiceBlock = voice || 'JORDY\'S CASUARINA — BRAND VOICE\n\nTHE CORE\ngritty, confident, a little chaotic — but always in control.\nfeels like a late-night bar, not a family pizzeria.\nsomeone talking across the table, not a brand writing at you.\neffortless. never trying too hard.\n\nTONE PILLARS\n\n1. casual but sharp\n— always lowercase\n— short, punchy lines\n— reads like conversation, not copy\nexample: midweek plans? yeah — this is better.\n\n2. cheeky + slightly unhinged (but intentional)\n— pushes just far enough to feel bold\n— never cringe, never try-hard\n— a bit of attitude, but still likeable\nexample: don\'t just dip the crust. fold the whole slice and commit.\n\n3. fomo without saying "don\'t miss out"\n— creates pull, not pressure\n— assumes you\'re already coming\nexample: tables filling. drinks cold. do what you want with that.\n\n4. anti-corporate / anti-polished\n— no buzzwords, no "we\'re excited to announce" energy\n— nothing over-explained\n— if it sounds like marketing, it\'s wrong.\n\n5. food confidence (borderline cocky)\n— doesn\'t describe the food in detail\n— assumes it\'s good — doesn\'t need to convince you\nexample: new pizza on. you\'ll figure it out.\n\n6. culture > product\n— it\'s about being there, not just eating\n— pizza is the vehicle, not the story\nexample: wednesdays look better here.\n\nLANGUAGE RULES (NON-NEGOTIABLE)\n— all lowercase\n— no emojis (or very rare, used ironically)\n— no exclamation marks\n— no long paragraphs\n— no brand speak, no over-describing ingredients\n— no CTAs in feed posts\n\nNEVER SOUND LIKE\n"we\'re excited to introduce…" / "crafted with the finest ingredients…" / "perfect for the whole family…"\n\nTHE $10 DEAL (WED & THU)\nstate it as fact. never hype it.\nright: drinks are $10 tonight. beer, wine, margaritas. with any pizza.\nwrong: don\'t miss our AMAZING drinks deal!!\n\nTHE ONE-LINE DEFINITION\njordy\'s sounds like the place you go when you don\'t want to be told what to do — but you already know where you\'re going.';
 
   return `You are a social media strategist for ${venue}, a sourdough pizza restaurant in Casuarina NSW. Open ${hours}. Bookings: ${booking}.
 
