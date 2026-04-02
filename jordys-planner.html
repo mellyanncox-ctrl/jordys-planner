@@ -6,6 +6,7 @@
 <title>Jordy's Casuarina — Content Planner</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --orange:#c2724c;--orange-bright:#e8825a;--orange-dim:#d4957a;
@@ -756,6 +757,73 @@ Aperol Spritz $18 | Native Negroni $22 | Old Fashioned $22 | Amaretto Sour $23</
 
 <script>
 // ═══════════════════════════════════════
+// SUPABASE
+// ═══════════════════════════════════════
+const SUPABASE_URL = 'https://edeaeapeifagfcjzzuov.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_0LGkGSioTdKnEHy9ugLWig_uBknV60q';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function sbSavePosts(){
+  if(!posts.length) return;
+  const rows = posts.map(p=>({
+    id: p.id,
+    data: {...p, imgSrc:'', imgFull:'', imgSrcs:[]},
+    updated_at: new Date().toISOString()
+  }));
+  const {error} = await sb.from('jordys_posts').upsert(rows,{onConflict:'id'});
+  if(error) console.error('sbSavePosts error:',error);
+}
+
+async function sbSavePhoto(postId, slot, thumb, url){
+  const {error} = await sb.from('jordys_photos').upsert({
+    id: postId+'_'+slot,
+    post_id: postId,
+    slot,
+    url: url||thumb,
+    thumb: thumb||url,
+  },{onConflict:'id'});
+  if(error) console.error('sbSavePhoto error:',error);
+}
+
+async function sbLoadAll(){
+  const {data:postRows, error:pe} = await sb.from('jordys_posts').select('*');
+  if(pe){ console.error('sbLoadAll posts error:',pe); return false; }
+  const {data:photoRows, error:phe} = await sb.from('jordys_photos').select('*');
+  if(phe){ console.error('sbLoadAll photos error:',phe); return false; }
+  const photoMap={};
+  (photoRows||[]).forEach(ph=>{
+    if(!photoMap[ph.post_id]) photoMap[ph.post_id]=[];
+    photoMap[ph.post_id][ph.slot]={thumb:ph.thumb, full:ph.url};
+  });
+  posts=(postRows||[]).map(row=>{
+    const p=row.data;
+    const imgs=(photoMap[p.id]||[]).filter(Boolean);
+    return{...p, imgSrc:imgs[0]?imgs[0].thumb:'', imgFull:imgs[0]?imgs[0].full:'', imgSrcs:imgs};
+  });
+  return true;
+}
+
+async function sbDeletePost(id){
+  await sb.from('jordys_posts').delete().eq('id',id);
+}
+
+// ═══════════════════════════════════════
+// CLOUDINARY
+// ═══════════════════════════════════════
+const CLOUDINARY_CLOUD  = 'dmijstkjk';
+const CLOUDINARY_PRESET = 'jordys';
+
+async function uploadToCloudinary(file){
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', CLOUDINARY_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:'POST',body:fd});
+  if(!res.ok) throw new Error('Cloudinary upload failed');
+  const data = await res.json();
+  return data.secure_url;
+}
+
+// ═══════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════
 let posts = [];
@@ -958,6 +1026,16 @@ function savePost(){
   const postData={id:postId,date:dateVal,type:typeVal,pillar,subject,caption,notes,floorNotes,status,imgSrc:thumbSrc,imgSrcs:isCarousel?carouselImages:[]};
   if(editingId){const idx=posts.findIndex(x=>x.id===editingId);if(idx>-1)posts[idx]=postData;}
   else posts.push(postData);
+  // Save photos to Supabase in background
+  if(isCarousel){
+    carouselImages.forEach((img,i)=>{
+      const thumb=typeof img==='object'?img.thumb:img;
+      const full=typeof img==='object'?img.full:img;
+      sbSavePhoto(postId,i,thumb,full);
+    });
+  } else if(thumbSrc&&thumbSrc.length>10){
+    sbSavePhoto(postId,0,thumbSrc,fullSrc);
+  }
   closeModal();autoSave();renderCalendar();renderKanban();buildShootList();
   showToast(editingId?'post updated ✓':'post added ✓');
 }
@@ -965,6 +1043,7 @@ function savePost(){
 function deleteCurrentPost(){
   if(!editingId)return;
   if(!confirm('Delete this post?'))return;
+  sbDeletePost(editingId);
   posts=posts.filter(p=>p.id!==editingId);
   closeModal();autoSave();renderCalendar();renderKanban();buildShootList();showToast('deleted');
 }
@@ -979,7 +1058,20 @@ function compressToThumb(file,cb){
 }
 
 async function compressImage(file,cb){
-  compressToThumb(file,thumb=>{cb({thumb,full:thumb});});
+  compressToThumb(file, async thumb=>{
+    let called=false;
+    const done=(full)=>{if(!called){called=true;cb({thumb,full});}};
+    const timeout=setTimeout(()=>done(thumb),15000);
+    try{
+      const fullUrl=await uploadToCloudinary(file);
+      clearTimeout(timeout);
+      done(fullUrl);
+    }catch(e){
+      clearTimeout(timeout);
+      console.warn('Cloudinary upload failed, using local thumb',e);
+      done(thumb);
+    }
+  });
 }
 
 function handlePhotoUpload(inp){
@@ -1392,42 +1484,53 @@ function updateApiStatus(s){
 }
 if(apiKey){document.getElementById('apiKeyInput').value=apiKey;updateApiStatus('ok');}
 
+
 // ═══════════════════════════════════════
 // SAVE / LOAD
 // ═══════════════════════════════════════
 let saveTimer=null;
 function autoSave(){
   const pill=document.getElementById('savePill');
-  pill.textContent='saving…';pill.className='save-pill saving';
+  pill.textContent='saving\u2026';pill.className='save-pill saving';
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>{
+  saveTimer=setTimeout(async()=>{
     try{
-      const lite=posts.map(p=>({...p,imgSrc:p.imgSrc&&p.imgSrc.startsWith('data:')?'[photo]':p.imgSrc,imgSrcs:[]}));
-      const str=JSON.stringify({posts:lite,weekOf:document.getElementById('genWeekOf').value,savedAt:new Date().toISOString()});
-      localStorage.setItem('jordys2_data',str);
-      posts.forEach(p=>{
-        if(p.imgSrc&&p.imgSrc.startsWith('data:')){try{localStorage.setItem('jordys2_photo_'+p.id,p.imgSrc);}catch(e){}}
-        if(p.imgSrcs){p.imgSrcs.forEach((s,i)=>{if(typeof s==='object'&&s.thumb&&s.thumb.startsWith('data:')){try{localStorage.setItem('jordys2_photo_'+p.id+'_'+i,s.thumb);}catch(e){}}})}
-      });
-      pill.textContent='saved';pill.className='save-pill ok';setTimeout(()=>{pill.textContent='saved';pill.className='save-pill';},2000);
-    }catch(e){pill.textContent='save failed';pill.className='save-pill saving';}
+      await sbSavePosts();
+      localStorage.setItem('jordys2_settings',JSON.stringify({
+        weekOf: document.getElementById('genWeekOf').value,
+        savedAt: new Date().toISOString(),
+      }));
+      pill.textContent='saved';pill.className='save-pill ok';
+      setTimeout(()=>{pill.textContent='saved';pill.className='save-pill';},2000);
+    }catch(e){
+      console.error('autoSave error:',e);
+      pill.textContent='save failed';pill.className='save-pill saving';
+    }
   },600);
 }
 
-function loadSaved(){
-  const raw=localStorage.getItem('jordys2_data');if(!raw)return;
-  try{
-    const d=JSON.parse(raw);
-    if(d.posts){posts=d.posts.map(p=>{
-      if(p.type==='post-carousel'){const imgs=[];for(let i=0;i<10;i++){const s=localStorage.getItem('jordys2_photo_'+p.id+'_'+i);if(!s)break;imgs.push(s);}return{...p,imgSrcs:imgs,imgSrc:imgs[0]||''};}
-      if(p.imgSrc==='[photo]'){const s=localStorage.getItem('jordys2_photo_'+p.id)||'';return{...p,imgSrc:s,imgSrcs:[]};}
-      return{...p,imgSrcs:[]};
-    });}
-    if(d.weekOf){document.getElementById('genWeekOf').value=d.weekOf;document.getElementById('sidebarWeek').textContent=d.weekOf;}
-  }catch(e){console.warn('load failed',e);}
+async function loadSaved(){
+  const ok = await sbLoadAll();
+  if(ok && posts.length){
+    console.log('Loaded '+posts.length+' posts from Supabase');
+  } else {
+    const raw=localStorage.getItem('jordys2_data');
+    if(raw){
+      try{
+        const d=JSON.parse(raw);
+        if(d.posts) posts=d.posts.map(p=>({...p,imgSrcs:[]}));
+      }catch(e){console.warn('localStorage fallback failed',e);}
+    }
+  }
+  const settings=localStorage.getItem('jordys2_settings');
+  if(settings){
+    try{
+      const s=JSON.parse(settings);
+      if(s.weekOf){document.getElementById('genWeekOf').value=s.weekOf;document.getElementById('sidebarWeek').textContent=s.weekOf;}
+    }catch(e){}
+  }
 }
 
-// ═══════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════
 function uid(){return Date.now().toString(36)+Math.random().toString(36).substring(2,7);}
@@ -1523,20 +1626,199 @@ function resetDesigner(){
 function downloadPNG(){
   const status=document.getElementById('dlStatus');
   status.textContent='rendering...';
-  const previewEl=document.getElementById('storyPreview');
-  const EXPORT_W=1080,EXPORT_H=1920;
-  const PREVIEW_W=340,PREVIEW_H=604;
-  const scale=EXPORT_W/PREVIEW_W;
-  html2canvas(previewEl,{scale:scale,width:PREVIEW_W,height:PREVIEW_H,useCORS:true,allowTaint:true,backgroundColor:DS.bg,logging:false}).then(canvas=>{
-    const link=document.createElement('a');link.download=`jordys-story-${Date.now()}.png`;link.href=canvas.toDataURL('image/png',1.0);link.click();status.textContent='downloaded ✓';setTimeout(()=>{status.textContent='';},3000);
-  }).catch(e=>{status.textContent='export failed — try a different browser';console.error(e);});
+
+  const W=1080, H=1920;
+  const canvas=document.getElementById('exportCanvas');
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+
+  const hl  = document.getElementById('dHeadline')?.value||'';
+  const sub = document.getElementById('dSubtext')?.value||'';
+  const body= document.getElementById('dBody')?.value||'';
+  const cta = document.getElementById('dCta')?.value||'';
+  const tag = document.getElementById('dTag')?.value||'';
+  const eyebrow=document.getElementById('dEyebrow')?.value||'';
+  const align=DS.align;
+  const pad=100;
+
+  function wrapText(ctx, text, x, y, maxW, lineH){
+    const words=text.split(' ');let line='';let lines=[];
+    for(let w of words){const test=line+(line?' ':'')+w;if(ctx.measureText(test).width>maxW&&line){lines.push(line);line=w;}else line=test;}
+    if(line)lines.push(line);
+    lines.forEach((l,i)=>ctx.fillText(l,x,y+i*lineH));
+    return lines.length;
+  }
+
+  function getX(w){return align==='center'?(W/2):align==='right'?(W-pad):pad;}
+  const ta=align==='center'?'center':align==='right'?'right':'left';
+
+  function drawDesign(){
+    ctx.clearRect(0,0,W,H);
+
+    if(tpl==='bold-text'){
+      // Background
+      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
+      // Divider line
+      const lineW=align==='center'?420:300;
+      const lx=align==='center'?(W-lineW)/2:align==='right'?W-pad-lineW:pad;
+      ctx.fillStyle=DS.line; ctx.fillRect(lx,H-540,lineW,6);
+      // Headline
+      ctx.fillStyle=DS.txt;
+      ctx.font=`700 ${DS.fontSize*2.8}px 'Bebas Neue', sans-serif`;
+      ctx.textAlign=ta;
+      const rows=wrapText(ctx,hl||'YOUR HEADLINE',getX(),H-480,W-pad*2,DS.fontSize*3.2);
+      // Subtext
+      if(sub){ctx.fillStyle=DS.sub;ctx.font=`400 ${DS.subFontSize*2}px 'DM Sans',sans-serif`;ctx.textAlign=ta;wrapText(ctx,sub,getX(),H-480+rows*DS.fontSize*3.2+40,W-pad*2,DS.subFontSize*2.4);}
+      // Thin separator
+      ctx.fillStyle=DS.line; ctx.globalAlpha=0.4; ctx.fillRect(pad,H-160,W-pad*2,3); ctx.globalAlpha=1;
+      // CTA
+      if(cta){ctx.fillStyle=DS.cta;ctx.font=`500 ${32}px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(cta.toUpperCase(),getX(),H-110);}
+      // Brand
+      ctx.fillStyle=DS.line; ctx.globalAlpha=0.8; ctx.font=`700 ${38}px 'Bebas Neue',sans-serif`;ctx.textAlign=ta;ctx.fillText("JORDY'S CASUARINA",getX(),H-56); ctx.globalAlpha=1;
+
+    } else if(tpl==='deal'){
+      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
+      // Tag badge
+      const tagText=(tag||'WED & THU ONLY').toUpperCase();
+      ctx.font=`700 36px 'Bebas Neue',sans-serif`;
+      const tagW=ctx.measureText(tagText).width+60;
+      const tagX=align==='center'?(W-tagW)/2:align==='right'?W-pad-tagW:pad;
+      ctx.fillStyle=DS.line; ctx.fillRect(tagX,H/2-320,tagW,70);
+      ctx.fillStyle=DS.bg; ctx.textAlign='left'; ctx.fillText(tagText,tagX+30,H/2-270);
+      // Headline
+      ctx.fillStyle=DS.txt; ctx.font=`700 ${DS.fontSize*2.8}px 'Bebas Neue',sans-serif`; ctx.textAlign=ta;
+      const rows=wrapText(ctx,hl||'$10 DRINKS',getX(),H/2-180,W-pad*2,DS.fontSize*3.2);
+      // Subtext
+      if(sub){ctx.fillStyle=DS.sub;ctx.font=`400 ${DS.subFontSize*2}px 'DM Sans',sans-serif`;ctx.textAlign=ta;wrapText(ctx,sub,getX(),H/2-180+rows*DS.fontSize*3.2+50,W-pad*2,DS.subFontSize*2.4);}
+      // Divider
+      ctx.fillStyle=DS.line; ctx.fillRect(pad,H/2+200,W-pad*2,6);
+      // CTA
+      if(cta){ctx.fillStyle=DS.cta;ctx.font=`500 32px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(cta.toUpperCase(),getX(),H/2+280);}
+      // Brand
+      ctx.fillStyle=DS.line;ctx.globalAlpha=0.8;ctx.font=`700 38px 'Bebas Neue',sans-serif`;ctx.textAlign=ta;ctx.fillText("JORDY'S CASUARINA",getX(),H/2+360);ctx.globalAlpha=1;
+
+    } else if(tpl==='cta-only'){
+      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle=DS.line; ctx.fillRect(pad,H/2-220,300,6);
+      ctx.fillStyle=DS.txt; ctx.font=`700 ${DS.fontSize*2.8}px 'Bebas Neue',sans-serif`; ctx.textAlign=ta;
+      const rows=wrapText(ctx,hl||'BOOK A TABLE',getX(),H/2-160,W-pad*2,DS.fontSize*3.2);
+      if(sub){ctx.fillStyle=DS.sub;ctx.font=`500 ${DS.subFontSize*1.8}px 'Space Mono',monospace`;ctx.textAlign=ta;wrapText(ctx,sub,getX(),H/2-160+rows*DS.fontSize*3.2+60,W-pad*2,DS.subFontSize*2.2);}
+      ctx.fillStyle=DS.line;ctx.globalAlpha=0.4;ctx.fillRect(pad,H/2+200,300,6);ctx.globalAlpha=1;
+
+    } else if(tpl==='photo-bottom'){
+      // Draw photo top portion
+      const photoH=Math.round(H*(DS.photoHeight/100));
+      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
+      if(photoDataUrl){
+        const img=new Image();
+        img.onload=()=>{
+          // Draw photo scaled to fill
+          const zoom=DS.photoZoom/100;
+          const dw=W*zoom, dh=photoH*zoom;
+          const dx=(W-dw)/2, dy=(photoH-dh)/2;
+          ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,photoH); ctx.clip();
+          ctx.drawImage(img,dx,dy,dw,dh);
+          ctx.restore();
+          drawPhotoBottomText(photoH);
+          exportCanvas();
+        };
+        img.src=photoDataUrl;
+        return;
+      }
+      drawPhotoBottomText(photoH);
+      exportCanvas();
+
+    } else if(tpl==='photo-overlay'){
+      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
+      if(photoDataUrl){
+        const img=new Image();
+        img.onload=()=>{
+          const zoom=DS.photoZoom/100;
+          const dw=W*zoom, dh=H*zoom;
+          const dx=(W-dw)/2, dy=(H-dh)/2;
+          ctx.drawImage(img,dx,dy,dw,dh);
+          // Dark overlay
+          ctx.fillStyle=`rgba(0,0,0,${DS.overlayOpacity/100})`; ctx.fillRect(0,0,W,H);
+          drawOverlayText();
+          exportCanvas();
+        };
+        img.src=photoDataUrl;
+        return;
+      }
+      drawOverlayText();
+      exportCanvas();
+
+    } else if(tpl==='announcement'){
+      ctx.fillStyle=DS.bg; ctx.fillRect(0,0,W,H);
+      if(tag){ctx.fillStyle=DS.line;ctx.font=`500 36px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(tag.toUpperCase(),getX(),H/2-340);}
+      if(eyebrow){ctx.fillStyle=DS.sub;ctx.font=`500 40px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(eyebrow.toUpperCase(),getX(),H/2-260);}
+      ctx.fillStyle=DS.txt; ctx.font=`700 ${DS.fontSize*2.8}px 'Bebas Neue',sans-serif`; ctx.textAlign=ta;
+      const rows=wrapText(ctx,hl||'ANNOUNCEMENT',getX(),H/2-180,W-pad*2,DS.fontSize*3.2);
+      const lineW=align==='center'?380:280;
+      const lx2=align==='center'?(W-lineW)/2:align==='right'?W-pad-lineW:pad;
+      ctx.fillStyle=DS.line; ctx.fillRect(lx2,H/2-180+rows*DS.fontSize*3.2+40,lineW,6);
+      if(body){ctx.fillStyle=DS.sub;ctx.font=`400 ${DS.subFontSize*1.8}px 'DM Sans',sans-serif`;ctx.textAlign=ta;wrapText(ctx,body,getX(),H/2-180+rows*DS.fontSize*3.2+100,W-pad*2,DS.subFontSize*2.2);}
+      if(cta){ctx.fillStyle=DS.cta;ctx.font=`500 32px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(cta.toUpperCase(),getX(),H/2+360);}
+    }
+
+  function drawPhotoBottomText(photoH){
+    const lineW=280;
+    const lx=align==='center'?(W-lineW)/2:align==='right'?W-pad-lineW:pad;
+    ctx.fillStyle=DS.line; ctx.fillRect(lx,photoH+80,lineW,5);
+    ctx.fillStyle=DS.txt; ctx.font=`700 ${DS.fontSize*2.4}px 'Bebas Neue',sans-serif`; ctx.textAlign=ta;
+    const rows=wrapText(ctx,hl||'HEADLINE',getX(),photoH+140,W-pad*2,DS.fontSize*2.8);
+    if(sub){ctx.fillStyle=DS.sub;ctx.font=`400 ${DS.subFontSize*1.8}px 'DM Sans',sans-serif`;ctx.textAlign=ta;wrapText(ctx,sub,getX(),photoH+140+rows*DS.fontSize*2.8+40,W-pad*2,DS.subFontSize*2.2);}
+    if(cta){ctx.fillStyle=DS.cta;ctx.font=`500 30px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(cta.toUpperCase(),getX(),H-100);}
+  }
+
+  function drawOverlayText(){
+    const lineW=280;
+    const lx=align==='center'?(W-lineW)/2:align==='right'?W-pad-lineW:pad;
+    ctx.fillStyle=DS.line; ctx.fillRect(lx,H-560,lineW,5);
+    ctx.fillStyle=DS.txt; ctx.font=`700 ${DS.fontSize*2.6}px 'Bebas Neue',sans-serif`; ctx.textAlign=ta;
+    const rows=wrapText(ctx,hl||'HEADLINE',getX(),H-480,W-pad*2,DS.fontSize*3);
+    if(sub){ctx.fillStyle=DS.sub;ctx.font=`400 ${DS.subFontSize*1.8}px 'DM Sans',sans-serif`;ctx.textAlign=ta;wrapText(ctx,sub,getX(),H-480+rows*DS.fontSize*3+40,W-pad*2,DS.subFontSize*2.2);}
+    ctx.fillStyle=DS.line;ctx.globalAlpha=0.4;ctx.fillRect(pad,H-160,W-pad*2,3);ctx.globalAlpha=1;
+    if(cta){ctx.fillStyle=DS.cta;ctx.font=`500 32px 'Space Mono',monospace`;ctx.textAlign=ta;ctx.fillText(cta.toUpperCase(),getX(),H-110);}
+  }
+
+  function exportCanvas(){
+    const link=document.createElement('a');
+    link.download=`jordys-story-${Date.now()}.png`;
+    link.href=canvas.toDataURL('image/png',1.0);
+    link.click();
+    status.textContent='downloaded ✓ (1080×1920)';
+    setTimeout(()=>{status.textContent='';},3000);
+  }
+
+    // For text-only templates, export directly from canvas
+    exportCanvas();
+  }
+
+  function exportCanvas(){
+    const link=document.createElement('a');
+    link.download=`jordys-story-${Date.now()}.png`;
+    link.href=canvas.toDataURL('image/png',1.0);
+    link.click();
+    status.textContent='downloaded ✓ (1080×1920)';
+    setTimeout(()=>{status.textContent='';},3000);
+  }
+
+  // Wait for fonts
+  document.fonts.ready.then(()=>{
+    if(photoDataUrl && (tpl==='photo-bottom'||tpl==='photo-overlay')){
+      drawDesign();
+    } else {
+      drawDesign();
+    }
+  });
 }
 
 // ═══════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════
 (async()=>{
-  loadSaved();
+  await loadSaved();
   if(document.getElementById('genWeekOf').value)updateWeekLabel();
   renderCalendar();
   renderChecklist();
