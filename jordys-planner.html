@@ -1109,10 +1109,16 @@ function handlePhotoUpload(inp){
     uploadToCloudinary(file).then(fullUrl=>{
       currentFullPhoto=fullUrl;
       console.log('Cloudinary upload OK:', fullUrl.substring(0,60));
-      // If post was already saved, update the photo record in Supabase
+      // Update any already-saved post with the Cloudinary URL
       if(editingId){
         const p=posts.find(x=>x.id===editingId);
-        if(p){p.imgSrc=fullUrl;sbSavePhoto(editingId,0,thumb,fullUrl);}
+        if(p){
+          p.imgSrc=fullUrl;
+          sbSavePhoto(editingId,0,thumb,fullUrl);
+          autoSave();
+          renderCalendar();
+          renderLibrary && renderLibrary();
+        }
       }
     }).catch(e=>{
       console.warn('Cloudinary failed, using base64:', e.message);
@@ -1460,18 +1466,35 @@ function renderLibrary(){
 }
 
 async function downloadImage(src,filename){
+  if(!src||src.length<10){showToast('no photo to download');return;}
   try{
-    // Fetch as blob to bypass CORS download restrictions on Cloudinary URLs
-    const res=await fetch(src);
-    const blob=await res.blob();
-    const url=URL.createObjectURL(blob);
+    let blobUrl;
+    if(src.startsWith('data:')){
+      // Base64 — convert directly to blob
+      const res=await fetch(src);
+      const blob=await res.blob();
+      blobUrl=URL.createObjectURL(blob);
+    } else {
+      // Cloudinary or external URL — fetch with CORS
+      const res=await fetch(src);
+      if(!res.ok) throw new Error('fetch failed');
+      const blob=await res.blob();
+      blobUrl=URL.createObjectURL(blob);
+    }
     const a=document.createElement('a');
-    a.href=url;a.download=filename;a.click();
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    a.href=blobUrl;
+    // Use .jpg for base64, keep original extension for URLs
+    const ext=src.startsWith('data:image/png')?'.png':'.jpg';
+    a.download=filename.replace(/\.[^.]+$/,'')+ext;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(blobUrl),2000);
+    showToast('downloading ✓');
   }catch(e){
-    // Fallback: open in new tab so user can save manually
+    // Last resort: open in new tab
     window.open(src,'_blank');
-    showToast('right-click the image to save');
+    showToast('opened in new tab — right-click to save');
   }
 }
 
