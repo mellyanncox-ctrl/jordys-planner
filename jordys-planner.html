@@ -790,15 +790,19 @@ async function sbLoadAll(){
   if(pe){ console.error('sbLoadAll posts error:',pe); return false; }
   const {data:photoRows, error:phe} = await sb.from('jordys_photos').select('*');
   if(phe){ console.error('sbLoadAll photos error:',phe); return false; }
+  console.log('sbLoadAll: posts='+postRows.length+' photos='+(photoRows||[]).length);
   const photoMap={};
   (photoRows||[]).forEach(ph=>{
     if(!photoMap[ph.post_id]) photoMap[ph.post_id]=[];
     photoMap[ph.post_id][ph.slot]={thumb:ph.thumb, full:ph.url};
+    console.log('photo slot '+ph.slot+' for post '+ph.post_id+' url='+ph.url?.substring(0,60));
   });
   posts=(postRows||[]).map(row=>{
     const p=row.data;
     const imgs=(photoMap[p.id]||[]).filter(Boolean);
-    return{...p, imgSrc:imgs[0]?imgs[0].thumb:'', imgFull:imgs[0]?imgs[0].full:'', imgSrcs:imgs};
+    const src = imgs[0] ? (imgs[0].full || imgs[0].thumb) : '';
+    console.log('post '+p.id+' imgSrc='+src?.substring(0,60));
+    return{...p, imgSrc:src, imgFull:src, imgSrcs:imgs};
   });
   return true;
 }
@@ -1081,12 +1085,20 @@ function handlePhotoUpload(inp){
   document.getElementById('photoPreview').style.display='block';
   document.getElementById('photoPlaceholder').style.display='none';
   document.getElementById('removePhotoBtn').style.display='inline-flex';
-  currentFullPhoto=previewUrl;
-  // Upload to Cloudinary — full URL persists across sessions
-  compressImage(file,({thumb,full})=>{
-    currentFullPhoto=full; // Cloudinary URL (or thumb base64 as fallback)
+  currentFullPhoto=previewUrl; // temporary blob for immediate display
+  // Compress to base64 thumb first — this persists even if Cloudinary fails
+  compressToThumb(file, thumb=>{
+    currentFullPhoto=thumb; // base64 — safe fallback, always persists
     document.getElementById('photoPreview').src=thumb;
     URL.revokeObjectURL(previewUrl);
+    // Then try Cloudinary in background — upgrade to CDN URL if it works
+    uploadToCloudinary(file).then(fullUrl=>{
+      currentFullPhoto=fullUrl; // upgrade to Cloudinary URL
+      console.log('Cloudinary upload OK:', fullUrl.substring(0,60));
+    }).catch(e=>{
+      console.warn('Cloudinary failed, using base64 thumb:', e.message);
+      // currentFullPhoto stays as base64 — will work but won't persist across devices
+    });
   });
 }
 
@@ -1768,12 +1780,15 @@ function renderPreviewHTML(S){
   } else if(tpl === 'photo-bottom'){
     const ph = Math.round(H * (DS.photoHeight/100));
     const textH = H - ph;
+    const zoom = DS.photoZoom/100;
     inner = `
-      <div style="width:100%;height:100%;background:${DS.bg};display:flex;flex-direction:column;">
-        <div style="height:${ph}px;overflow:hidden;flex-shrink:0;">
-          ${photoDataUrl ? `<img data-photo="1" style="width:100%;height:100%;object-fit:cover;transform:scale(${DS.photoZoom/100});transform-origin:center;" crossorigin="anonymous">` : `<div style="width:100%;height:100%;background:${DS.bg};"></div>`}
+      <div style="width:${W}px;height:${H}px;background:${DS.bg};position:relative;">
+        <div style="position:absolute;top:0;left:0;width:${W}px;height:${ph}px;overflow:hidden;">
+          ${photoDataUrl
+            ? `<img data-photo="1" style="position:absolute;top:50%;left:50%;width:${Math.round(W*zoom)}px;height:${Math.round(ph*zoom)}px;transform:translate(-50%,-50%);object-fit:cover;" crossorigin="anonymous">`
+            : `<div style="width:100%;height:100%;background:#333;"></div>`}
         </div>
-        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:${Math.round(pad*0.7)}px ${pad}px;">
+        <div style="position:absolute;top:${ph}px;left:0;width:${W}px;height:${textH}px;display:flex;flex-direction:column;justify-content:center;padding:${Math.round(pad*0.7)}px ${pad}px;">
           <div style="height:${Math.round(2*S)}px;background:${DS.line};width:${lineW}px;margin-left:${lineML};margin-right:${lineMR};margin-bottom:${Math.round(14*S)}px;"></div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:${Math.round(DS.fontSize*S*0.5)}px;color:${DS.txt};letter-spacing:${Math.round(2*S)}px;line-height:1.05;${alignCSS}white-space:pre-line;">${e(hl)||'HEADLINE'}</div>
           ${sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(DS.subFontSize*S*0.45)}px;color:${DS.sub};margin-top:${Math.round(10*S)}px;${alignCSS}line-height:1.4;">${e(sub)}</div>`:''}
@@ -1782,9 +1797,12 @@ function renderPreviewHTML(S){
       </div>`;
 
   } else if(tpl === 'photo-overlay'){
+    const zoom2 = DS.photoZoom/100;
     inner = `
-      <div style="width:100%;height:100%;position:relative;overflow:hidden;">
-        ${photoDataUrl ? `<img data-photo="1" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scale(${DS.photoZoom/100});transform-origin:center;" crossorigin="anonymous">` : `<div style="position:absolute;inset:0;background:${DS.bg};"></div>`}
+      <div style="width:${W}px;height:${H}px;position:relative;overflow:hidden;">
+        ${photoDataUrl
+          ? `<img data-photo="1" style="position:absolute;top:50%;left:50%;width:${Math.round(W*zoom2)}px;height:${Math.round(H*zoom2)}px;transform:translate(-50%,-50%);object-fit:cover;" crossorigin="anonymous">`
+          : `<div style="position:absolute;inset:0;background:${DS.bg};"></div>`}
         <div style="position:absolute;inset:0;background:rgba(0,0,0,${DS.overlayOpacity/100});"></div>
         <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:${pad}px;">
           <div style="height:${Math.round(2*S)}px;background:${DS.line};width:${lineW}px;margin-left:${lineML};margin-right:${lineMR};margin-bottom:${Math.round(16*S)}px;"></div>
