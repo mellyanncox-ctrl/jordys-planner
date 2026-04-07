@@ -1183,10 +1183,13 @@ function handlePhotoUpload(inp){
     const uploadTargetId = editingId;
     // Step 2: upload to Cloudinary in background for CDN URL
     uploadToCloudinary(file).then(fullUrl=>{
-      currentFullPhoto=fullUrl;
       console.log('Cloudinary upload OK:', fullUrl.substring(0,60));
-      // Find the post — works for both new posts (by finding most recent) and edits
+      // Only update currentFullPhoto if the modal is still open for the same post
       const targetId = uploadTargetId || window._lastSavedPostId || (posts.length ? posts[posts.length-1].id : null);
+      if(editingId === uploadTargetId || (!editingId && !uploadTargetId)){
+        currentFullPhoto = fullUrl; // safe — same post still open
+      }
+      // Always upgrade the saved post record in Supabase
       if(targetId){
         const p=posts.find(x=>x.id===targetId);
         if(p){
