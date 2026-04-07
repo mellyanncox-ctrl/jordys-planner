@@ -1112,7 +1112,7 @@ function savePost(){
     thumbSrc=(raw&&raw.length>10&&!raw.startsWith('blob:'))?raw:'';
     fullSrc=thumbSrc;
   }
-  const postId=editingId||uid();
+  const postId=editingId||document.getElementById('postModal').dataset.pendingId||uid(); delete document.getElementById('postModal').dataset.pendingId;
   const postData={id:postId,date:dateVal,type:typeVal,pillar,subject,caption,notes,floorNotes,status,imgSrc:fullSrc||thumbSrc,imgSrcs:isCarousel?carouselImages:[]};
   if(editingId){const idx=posts.findIndex(x=>x.id===editingId);if(idx>-1)posts[idx]=postData;}
   else posts.push(postData);
@@ -1174,33 +1174,35 @@ function handlePhotoUpload(inp){
   document.getElementById('photoPreview').style.display='block';
   document.getElementById('photoPlaceholder').style.display='none';
   document.getElementById('removePhotoBtn').style.display='inline-flex';
-  // Step 1: compress to base64 immediately — always safe to save
+
+  // Lock in a post ID immediately — for new posts, generate the ID now
+  // so Cloudinary always knows exactly which post it belongs to
+  if(!editingId){
+    editingId = uid();
+    document.getElementById('postModal').dataset.pendingId = editingId;
+  }
+  const lockedPostId = editingId;
+
   compressToThumb(file, thumb=>{
-    currentFullPhoto=thumb; // base64 — persists in Supabase, works offline
-    document.getElementById('photoPreview').src=thumb;
+    currentFullPhoto = thumb; // base64 shown immediately
+    document.getElementById('photoPreview').src = thumb;
     URL.revokeObjectURL(previewUrl);
-    // Capture the post ID at upload time — editingId may be null by the time Cloudinary finishes
-    const uploadTargetId = editingId;
-    // Step 2: upload to Cloudinary in background for CDN URL
+
+    // Upload to Cloudinary — lockedPostId never changes
     uploadToCloudinary(file).then(fullUrl=>{
-      console.log('Cloudinary upload OK:', fullUrl.substring(0,60));
-      // Only update currentFullPhoto if the modal is still open for the same post
-      const targetId = uploadTargetId || window._lastSavedPostId || (posts.length ? posts[posts.length-1].id : null);
-      if(editingId === uploadTargetId || (!editingId && !uploadTargetId)){
-        currentFullPhoto = fullUrl; // safe — same post still open
-      }
-      // Always upgrade the saved post record in Supabase
-      if(targetId){
-        const p=posts.find(x=>x.id===targetId);
-        if(p){
-          p.imgSrc=fullUrl;
-          sbSavePhoto(targetId,0,thumb,fullUrl);
-          autoSave();
-          renderCalendar();
-        }
+      console.log('Cloudinary upload OK for post '+lockedPostId+':', fullUrl.substring(0,60));
+      // Update currentFullPhoto only if this post is still open
+      if(editingId === lockedPostId) currentFullPhoto = fullUrl;
+      // Always upgrade the Supabase record for this specific post
+      const p = posts.find(x=>x.id===lockedPostId);
+      if(p){
+        p.imgSrc = fullUrl;
+        sbSavePhoto(lockedPostId, 0, thumb, fullUrl);
+        autoSave();
+        renderCalendar();
       }
     }).catch(e=>{
-      console.warn('Cloudinary failed, using base64:', e.message);
+      console.warn('Cloudinary failed, keeping base64:', e.message);
     });
   });
 }
