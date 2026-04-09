@@ -1839,9 +1839,9 @@ async function downloadPNG(){
   await document.fonts.ready;
   await new Promise(r=>setTimeout(r,300));
 
-  const SCALE=Math.ceil(1080/340*10)/10; // ~3.176 → exports at 1080x1920
   const PW=340, PH=604;
-  const W=PW*SCALE, H=PH*SCALE;
+  const W=1080, H=1920; // exact Instagram story dimensions
+  const SCALE=W/PW; // 3.1764...
   const isPhoto=DS.tpl==='photo-bottom'||DS.tpl==='photo-overlay';
 
   try{
