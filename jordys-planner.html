@@ -1892,13 +1892,15 @@ async function downloadPNG(){
     const font   = `'${DS.fontName}',${DS.fontName==='Space Mono'?'monospace':'sans-serif'}`;
     const fs     = DS.fontSize;
     const subPx  = DS.subFontSize;
-    const pad    = 22;
+    const pad    = Math.round(22*SCALE);
 
-    const divHtml = `<div style="height:2px;background:${DS.line};margin:14px 0 10px;opacity:.85;flex-shrink:0;"></div>`;
-    const ctaHtml = ctaTxt?`<div style="display:flex;align-items:center;gap:7px;justify-content:${aflex};font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:${DS.cta};flex-shrink:0;">&#8594; <span>${esc(ctaTxt)}</span></div>`:'';
-    const subHtml = sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${subPx}px;line-height:1.5;color:${DS.sub};margin-top:8px;text-align:${align};">${esc(sub)}</div>`:'';
-    const hlHtml  = `<div style="font-family:${font};font-size:${fs}px;letter-spacing:2px;line-height:1.05;color:${DS.txt};">${esc(hl)}</div>`;
-    const bodyHtml= body?`<div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(fs*0.45)}px;line-height:1.6;color:${DS.sub};margin-top:10px;">${esc(body)}</div>`:'';
+    // Scale all font sizes and spacing up to full export resolution
+    const S = SCALE;
+    const divHtml = `<div style="height:${Math.round(2*S)}px;background:${DS.line};margin:${Math.round(14*S)}px 0 ${Math.round(10*S)}px;opacity:.85;flex-shrink:0;"></div>`;
+    const ctaHtml = ctaTxt?`<div style="display:flex;align-items:center;gap:${Math.round(7*S)}px;justify-content:${aflex};font-family:'Space Mono',monospace;font-size:${Math.round(8*S)}px;letter-spacing:${Math.round(2*S)}px;text-transform:uppercase;color:${DS.cta};flex-shrink:0;">&#8594; <span>${esc(ctaTxt)}</span></div>`:'';
+    const subHtml = sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(subPx*S)}px;line-height:1.5;color:${DS.sub};margin-top:${Math.round(8*S)}px;text-align:${align};">${esc(sub)}</div>`:'';
+    const hlHtml  = `<div style="font-family:${font};font-size:${Math.round(fs*S)}px;letter-spacing:${Math.round(2*S)}px;line-height:1.05;color:${DS.txt};">${esc(hl)}</div>`;
+    const bodyHtml= body?`<div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(fs*0.45*S)}px;line-height:1.6;color:${DS.sub};margin-top:${Math.round(10*S)}px;">${esc(body)}</div>`:'';
 
     let textInner='';
     if(DS.tpl==='bold-text'||DS.tpl==='announcement'||DS.tpl==='deal'){
@@ -1931,22 +1933,22 @@ async function downloadPNG(){
         </div>`;
     }
 
-    // Create offscreen div at preview size (html2canvas scales it up)
+    // Create offscreen div at FULL export size — render at 1:1, no upscaling
     const offscreen=document.createElement('div');
-    offscreen.style.cssText=`position:fixed;left:-9999px;top:0;width:${PW}px;height:${PH}px;overflow:hidden;background:transparent;font-family:'DM Sans',sans-serif;`;
+    offscreen.style.cssText=`position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;overflow:hidden;background:transparent;font-family:'DM Sans',sans-serif;`;
     offscreen.innerHTML=textInner;
     document.body.appendChild(offscreen);
     await new Promise(r=>setTimeout(r,200));
 
-    // Step 3: capture text layer at scale (transparent bg)
+    // Step 3: capture text layer at scale:1 — already full res
     const textCanvas=await html2canvas(offscreen,{
-      scale:SCALE,
+      scale:1,
       useCORS:true,
       allowTaint:true,
       backgroundColor:null,
       logging:false,
-      width:PW,
-      height:PH,
+      width:W,
+      height:H,
     });
     document.body.removeChild(offscreen);
 
