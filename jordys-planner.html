@@ -1834,140 +1834,203 @@ function renderPreview(){
 }
 
 async function downloadPNG(){
-  const statusEl=document.getElementById('dlStatus');
-  statusEl.textContent='rendering...';
+  const statusEl = document.getElementById('dlStatus');
+  statusEl.textContent = 'rendering...';
   await document.fonts.ready;
-  await new Promise(r=>setTimeout(r,300));
+  await new Promise(r => setTimeout(r, 200));
 
-  const PW=340, PH=604;
-  const W=1080, H=1920; // exact Instagram story dimensions
-  const SCALE=W/PW; // 3.1764...
-  const isPhoto=DS.tpl==='photo-bottom'||DS.tpl==='photo-overlay';
+  const W = 1080, H = 1920;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
 
-  try{
-    // Step 1: draw photo directly to canvas at full res
-    const canvas=document.createElement('canvas');
-    canvas.width=W; canvas.height=H;
-    const ctx=canvas.getContext('2d');
-    ctx.fillStyle=DS.bg;
-    ctx.fillRect(0,0,W,H);
+  const hl      = document.getElementById('dHeadline')?.value || '';
+  const sub     = document.getElementById('dSubtext')?.value  || '';
+  const body    = document.getElementById('dBody')?.value     || '';
+  const ctaTxt  = document.getElementById('dCta')?.value      || '';
+  const tag     = document.getElementById('dTag')?.value      || '';
+  const eyebrow = document.getElementById('dEyebrow')?.value  || '';
+  const align   = DS.align;
+  const pad     = 72; // padding at full res
 
-    if(isPhoto && DS.photoImg){
-      const img=DS.photoImg;
-      const zoom=DS.photoZoom/100;
-      if(DS.tpl==='photo-bottom'){
-        const photoH=Math.round(H*(DS.photoHeight/100));
-        ctx.save();
-        ctx.beginPath(); ctx.rect(0,0,W,photoH); ctx.clip();
-        const r=Math.max(W/img.width, photoH/img.height)*zoom;
-        const dw=img.width*r, dh=img.height*r;
-        ctx.drawImage(img,(W-dw)/2,(photoH-dh)/2,dw,dh);
-        ctx.restore();
-        ctx.fillStyle=DS.bg;
-        ctx.fillRect(0,photoH,W,H-photoH);
-      } else {
-        // photo-overlay: full bleed + gradient
-        const r=Math.max(W/img.width, H/img.height)*zoom;
-        const dw=img.width*r, dh=img.height*r;
-        ctx.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh);
-        const grad=ctx.createLinearGradient(0,H,0,0);
-        grad.addColorStop(0,DS.bg);
-        grad.addColorStop(0.48,DS.bg);
-        grad.addColorStop(1,`rgba(0,0,0,${(DS.overlayOpacity/100).toFixed(2)})`);
-        ctx.fillStyle=grad;
-        ctx.fillRect(0,0,W,H);
-      }
+  // text alignment helpers
+  ctx.textBaseline = 'top';
+  function tx() { return align === 'center' ? W/2 : align === 'right' ? W - pad : pad; }
+  function ta() { return align === 'center' ? 'center' : align === 'right' ? 'right' : 'left'; }
+
+  // wrap text, returns number of lines drawn
+  function drawWrapped(text, x, y, maxW, lineH, color, font) {
+    ctx.fillStyle = color;
+    ctx.font = font;
+    ctx.textAlign = ta();
+    const words = text.split(' ');
+    let line = '', lines = [];
+    for (const w of words) {
+      const test = line + (line ? ' ' : '') + w;
+      if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
+      else line = test;
     }
-
-    // Step 2: build text-only offscreen div (transparent bg)
-    const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-    const hl     = document.getElementById('dHeadline')?.value||'';
-    const ctaTxt = document.getElementById('dCta')?.value||'';
-    const eyebrow= document.getElementById('dEyebrow')?.value||'';
-    const body   = document.getElementById('dBody')?.value||'';
-    const tag    = document.getElementById('dTag')?.value||'';
-    const sub    = document.getElementById('dSubtext')?.value||'';
-    const align  = DS.align;
-    const aflex  = align==='center'?'center':align==='right'?'flex-end':'flex-start';
-    const font   = `'${DS.fontName}',${DS.fontName==='Space Mono'?'monospace':'sans-serif'}`;
-    const fs     = DS.fontSize;
-    const subPx  = DS.subFontSize;
-    const pad    = Math.round(22*SCALE);
-
-    // Scale all font sizes and spacing up to full export resolution
-    const S = SCALE;
-    const divHtml = `<div style="height:${Math.round(2*S)}px;background:${DS.line};margin:${Math.round(14*S)}px 0 ${Math.round(10*S)}px;opacity:.85;flex-shrink:0;"></div>`;
-    const ctaHtml = ctaTxt?`<div style="display:flex;align-items:center;gap:${Math.round(7*S)}px;justify-content:${aflex};font-family:'Space Mono',monospace;font-size:${Math.round(8*S)}px;letter-spacing:${Math.round(2*S)}px;text-transform:uppercase;color:${DS.cta};flex-shrink:0;">&#8594; <span>${esc(ctaTxt)}</span></div>`:'';
-    const subHtml = sub?`<div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(subPx*S)}px;line-height:1.5;color:${DS.sub};margin-top:${Math.round(8*S)}px;text-align:${align};">${esc(sub)}</div>`:'';
-    const hlHtml  = `<div style="font-family:${font};font-size:${Math.round(fs*S)}px;letter-spacing:${Math.round(2*S)}px;line-height:1.05;color:${DS.txt};">${esc(hl)}</div>`;
-    const bodyHtml= body?`<div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(fs*0.45*S)}px;line-height:1.6;color:${DS.sub};margin-top:${Math.round(10*S)}px;">${esc(body)}</div>`:'';
-
-    let textInner='';
-    if(DS.tpl==='bold-text'||DS.tpl==='announcement'||DS.tpl==='deal'){
-      const topContent=`
-        ${DS.tpl==='deal'&&tag?`<div style="display:inline-block;background:${DS.cta};color:${DS.bg};font-family:'Space Mono',monospace;font-size:7px;letter-spacing:2px;text-transform:uppercase;padding:3px 8px;border-radius:2px;margin-bottom:12px;">${esc(tag)}</div>`:''}
-        ${DS.tpl==='announcement'&&eyebrow?`<div style="font-family:'Space Mono',monospace;font-size:7px;letter-spacing:3px;text-transform:uppercase;color:${DS.cta};margin-bottom:12px;opacity:.8;">${esc(eyebrow)}</div>`:''}
-        ${hlHtml}${subHtml}${bodyHtml}`;
-      textInner=`
-        <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between;padding:${pad}px;box-sizing:border-box;">
-          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;text-align:${align};overflow:hidden;min-height:0;">${topContent}</div>
-          <div style="flex-shrink:0;text-align:${align};">${divHtml}${ctaHtml}</div>
-        </div>`;
-    } else if(DS.tpl==='cta-only'){
-      textInner=`
-        <div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:${aflex};justify-content:center;padding:${pad}px;box-sizing:border-box;text-align:${align};position:relative;">
-          ${hlHtml}${subHtml}
-          <div style="position:absolute;bottom:${pad}px;left:${pad}px;right:${pad}px;text-align:${align};">${divHtml}${ctaHtml}</div>
-        </div>`;
-    } else if(DS.tpl==='photo-bottom'){
-      textInner=`
-        <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding:${pad}px;box-sizing:border-box;text-align:${align};">
-          ${body?`<div style="margin-bottom:8px;">${bodyHtml}</div>`:''}
-          ${hlHtml}${subHtml}${divHtml}${ctaHtml}
-        </div>`;
-    } else if(DS.tpl==='photo-overlay'){
-      textInner=`
-        <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between;padding:${pad}px;box-sizing:border-box;">
-          ${eyebrow?`<div style="font-family:'Space Mono',monospace;font-size:7px;letter-spacing:3px;text-transform:uppercase;color:${DS.cta};text-align:${align};">${esc(eyebrow)}</div>`:'<div></div>'}
-          <div style="text-align:${align};">${hlHtml}${subHtml}${divHtml}${ctaHtml}</div>
-        </div>`;
-    }
-
-    // Create offscreen div at FULL export size — render at 1:1, no upscaling
-    const offscreen=document.createElement('div');
-    offscreen.style.cssText=`position:fixed;left:-9999px;top:0;width:${W}px;height:${H}px;overflow:hidden;background:transparent;font-family:'DM Sans',sans-serif;`;
-    offscreen.innerHTML=textInner;
-    document.body.appendChild(offscreen);
-    await new Promise(r=>setTimeout(r,200));
-
-    // Step 3: capture text layer at scale:1 — already full res
-    const textCanvas=await html2canvas(offscreen,{
-      scale:1,
-      useCORS:true,
-      allowTaint:true,
-      backgroundColor:null,
-      logging:false,
-      width:W,
-      height:H,
-    });
-    document.body.removeChild(offscreen);
-
-    // Step 4: composite text onto photo canvas
-    ctx.drawImage(textCanvas,0,0,W,H);
-
-    // Download
-    const a=document.createElement('a');
-    a.download=`jordys-story-${Date.now()}.png`;
-    a.href=canvas.toDataURL('image/png');
-    a.click();
-    statusEl.textContent='downloaded \u2713  1080\u00d71920';
-    showToast('story downloaded \u2713');
-
-  }catch(e){
-    statusEl.textContent='error: '+e.message;
-    showToast('export failed');
-    console.error(e);
+    if (line) lines.push(line);
+    lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineH));
+    return lines.length;
   }
+
+  function drawLine(y) {
+    const lw = align === 'center' ? 300 : 220;
+    const lx = align === 'center' ? (W - lw) / 2 : align === 'right' ? W - pad - lw : pad;
+    ctx.fillStyle = DS.line;
+    ctx.fillRect(lx, y, lw, 4);
+  }
+
+  function drawCta(y) {
+    if (!ctaTxt) return;
+    ctx.font = '500 32px "Space Mono", monospace';
+    ctx.fillStyle = DS.cta;
+    ctx.textAlign = ta();
+    ctx.textBaseline = 'top';
+    ctx.fillText(('\u2192 ' + ctaTxt).toUpperCase(), tx(), y);
+  }
+
+  const hlFont   = `700 ${Math.round(DS.fontSize * 3.2)}px "${DS.fontName}", sans-serif`;
+  const subFont  = `400 ${Math.round(DS.subFontSize * 3.2)}px "DM Sans", sans-serif`;
+  const bodyFont = `400 ${Math.round(DS.fontSize * 3.2 * 0.45)}px "DM Sans", sans-serif`;
+  const maxW     = W - pad * 2;
+
+  function drawBackground() {
+    ctx.fillStyle = DS.bg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawPhoto(zone_y, zone_h) {
+    if (!DS.photoImg) return;
+    const img = DS.photoImg;
+    const zoom = DS.photoZoom / 100;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, zone_y, W, zone_h);
+    ctx.clip();
+    const r = Math.max(W / img.width, zone_h / img.height) * zoom;
+    const dw = img.width * r, dh = img.height * r;
+    ctx.drawImage(img, (W - dw) / 2, zone_y + (zone_h - dh) / 2, dw, dh);
+    ctx.restore();
+  }
+
+  if (DS.tpl === 'bold-text' || DS.tpl === 'announcement' || DS.tpl === 'deal') {
+    drawBackground();
+    let y = H - 560;
+
+    // tag badge (deal)
+    if (DS.tpl === 'deal' && tag) {
+      ctx.font = '700 38px "Bebas Neue", sans-serif';
+      ctx.textAlign = ta(); ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(tag.toUpperCase()).width;
+      const bx = align === 'center' ? (W - tw - 48) / 2 : align === 'right' ? W - pad - tw - 48 : pad;
+      ctx.fillStyle = DS.cta;
+      ctx.fillRect(bx, y, tw + 48, 56);
+      ctx.fillStyle = DS.bg;
+      ctx.fillText(tag.toUpperCase(), align === 'center' ? W/2 : align === 'right' ? W-pad-tw/2-24 : bx+24, y + 28);
+      y += 80;
+    }
+
+    // eyebrow (announcement)
+    if (DS.tpl === 'announcement' && eyebrow) {
+      ctx.font = '500 30px "Space Mono", monospace';
+      ctx.fillStyle = DS.cta; ctx.textAlign = ta(); ctx.textBaseline = 'top';
+      ctx.fillText(eyebrow.toUpperCase(), tx(), y);
+      y += 54;
+    }
+
+    // headline
+    ctx.textBaseline = 'top';
+    const hlLines = drawWrapped(hl || 'YOUR HEADLINE', tx(), y, maxW, Math.round(DS.fontSize * 3.2 * 1.1), DS.txt, hlFont);
+    y += hlLines * Math.round(DS.fontSize * 3.2 * 1.1) + 28;
+
+    // subtext
+    if (sub) {
+      const sl = drawWrapped(sub, tx(), y, maxW, Math.round(DS.subFontSize * 3.2 * 1.4), DS.sub, subFont);
+      y += sl * Math.round(DS.subFontSize * 3.2 * 1.4) + 20;
+    }
+
+    // body
+    if (body && DS.tpl === 'announcement') {
+      const bl = drawWrapped(body, tx(), y, maxW, Math.round(DS.fontSize * 3.2 * 0.45 * 1.6), DS.sub, bodyFont);
+      y += bl * Math.round(DS.fontSize * 3.2 * 0.45 * 1.6) + 20;
+    }
+
+    // bottom elements
+    drawLine(H - 180);
+    drawCta(H - 130);
+
+  } else if (DS.tpl === 'cta-only') {
+    drawBackground();
+    drawLine(H / 2 - 120);
+    let y = H / 2 - 60;
+    const hl2 = drawWrapped(hl || 'BOOK A TABLE', tx(), y, maxW, Math.round(DS.fontSize * 3.2 * 1.1), DS.txt, hlFont);
+    y += hl2 * Math.round(DS.fontSize * 3.2 * 1.1) + 28;
+    if (sub) drawWrapped(sub, tx(), y, maxW, Math.round(DS.subFontSize * 3.2 * 1.4), DS.sub, subFont);
+    drawLine(H - 180);
+    drawCta(H - 130);
+
+  } else if (DS.tpl === 'photo-bottom') {
+    const photoH = Math.round(H * (DS.photoHeight / 100));
+    drawBackground();
+    drawPhoto(0, photoH);
+    // text zone
+    let y = photoH + 80;
+    drawLine(y); y += 30;
+    const hl2 = drawWrapped(hl || 'HEADLINE', tx(), y, maxW, Math.round(DS.fontSize * 3.2 * 1.1), DS.txt, hlFont);
+    y += hl2 * Math.round(DS.fontSize * 3.2 * 1.1) + 24;
+    if (sub) {
+      const sl = drawWrapped(sub, tx(), y, maxW, Math.round(DS.subFontSize * 3.2 * 1.4), DS.sub, subFont);
+      y += sl * Math.round(DS.subFontSize * 3.2 * 1.4) + 16;
+    }
+    if (body) drawWrapped(body, tx(), y, maxW, Math.round(DS.fontSize * 3.2 * 0.45 * 1.6), DS.sub, bodyFont);
+    drawCta(H - 130);
+
+  } else if (DS.tpl === 'photo-overlay') {
+    drawBackground();
+    // full bleed photo
+    if (DS.photoImg) {
+      const img = DS.photoImg;
+      const zoom = DS.photoZoom / 100;
+      const r = Math.max(W / img.width, H / img.height) * zoom;
+      const dw = img.width * r, dh = img.height * r;
+      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      // gradient overlay
+      const grad = ctx.createLinearGradient(0, H, 0, 0);
+      grad.addColorStop(0, DS.bg);
+      grad.addColorStop(0.48, DS.bg);
+      grad.addColorStop(1, `rgba(0,0,0,${(DS.overlayOpacity / 100).toFixed(2)})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+    }
+    // eyebrow top
+    if (eyebrow) {
+      ctx.font = '500 30px "Space Mono", monospace';
+      ctx.fillStyle = DS.cta; ctx.textAlign = ta(); ctx.textBaseline = 'top';
+      ctx.fillText(eyebrow.toUpperCase(), tx(), pad);
+    }
+    // text bottom
+    let y = H - 520;
+    drawLine(y); y += 30;
+    const hl2 = drawWrapped(hl || 'HEADLINE', tx(), y, maxW, Math.round(DS.fontSize * 3.2 * 1.1), DS.txt, hlFont);
+    y += hl2 * Math.round(DS.fontSize * 3.2 * 1.1) + 24;
+    if (sub) drawWrapped(sub, tx(), y, maxW, Math.round(DS.subFontSize * 3.2 * 1.4), DS.sub, subFont);
+    drawLine(H - 180);
+    drawCta(H - 130);
+  }
+
+  // download
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = `jordys-story-${Date.now()}.png`;
+    a.href = url;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    statusEl.textContent = 'downloaded \u2713  1080\u00d71920';
+    showToast('story downloaded \u2713');
+  }, 'image/png');
 }
 
 function resetDesigner(){
